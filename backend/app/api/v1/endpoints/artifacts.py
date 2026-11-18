@@ -18,6 +18,7 @@ from backend.app.api.deps import get_current_user
 from backend.app.api.v1.endpoints.projects import check_user_workspace_access
 from backend.app.services.extractor import safe_extract_zip, SafeExtractionError
 from backend.app.services.classifier import scan_and_classify_project
+from backend.app.core.security_validator import validate_zip_magic_bytes
 
 router = APIRouter()
 
@@ -51,10 +52,16 @@ async def upload_project_archive(
 
     try:
         with open(dest_zip_path, "wb") as f:
+            first_chunk = True
             while True:
                 chunk = await file.read(65536)
                 if not chunk:
                     break
+                if first_chunk:
+                    is_valid, msg = validate_zip_magic_bytes(chunk)
+                    if not is_valid:
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+                    first_chunk = False
                 total_bytes += len(chunk)
                 if total_bytes > settings.MAX_UPLOAD_SIZE_BYTES:
                     raise HTTPException(

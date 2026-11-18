@@ -2791,6 +2791,13 @@ export default function App() {
                     active: true,
                     details: 'Production-grade HCL synthesizing Cloud Run v2, Serverless VPC Access connector, Cloud SQL PostgreSQL 16, Secret Manager, least-privilege IAM service account, and downloadable bundle.',
                   },
+                  {
+                    phase: 'Phase 4: Week 12',
+                    title: 'Enterprise Security Hardening & Rate Limiting',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Token bucket rate limiting, OWASP security headers (HSTS, CSP, X-Frame-Options), and strict zip magic bytes file upload verification.',
+                  },
                 ].map((item, idx) => (
                   <div
                     key={idx}

@@ -16,6 +16,8 @@ from backend.app.api.v1.endpoints.reports import router as reports_router
 from backend.app.api.v1.endpoints.agents import router as agents_router
 from backend.app.api.v1.endpoints.workbench import router as workbench_router
 from backend.app.api.v1.endpoints.infra import router as infra_router
+from backend.app.core.security_headers import SecurityHeadersMiddleware
+from backend.app.core.rate_limiter import RateLimiterMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,6 +44,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# OWASP Security Headers Middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Token Bucket Rate Limiting Middleware
+app.add_middleware(RateLimiterMiddleware, capacity=120.0, refill_rate=30.0)
 
 
 @app.get("/health", summary="Root Health Check")
