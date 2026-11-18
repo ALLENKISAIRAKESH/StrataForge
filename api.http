@@ -16,9 +16,9 @@ POST {{baseUrl}}/auth/register HTTP/1.1
 Content-Type: application/json
 
 {
-  "email": "lead.fde@googlecloud.com",
-  "password": "Password123!",
-  "full_name": "Lead Forward Deployed Engineer"
+  "email": "alex.chen@strataforge.io",
+  "password": "StrataSecure#2026!",
+  "full_name": "Alex Chen (Principal Cloud Architect)"
 }
 
 ### 3. User Login
@@ -27,8 +27,8 @@ POST {{baseUrl}}/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-  "email": "lead.fde@googlecloud.com",
-  "password": "Password123!"
+  "email": "alex.chen@strataforge.io",
+  "password": "StrataSecure#2026!"
 }
 
 ### Save Token from login response

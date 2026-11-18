@@ -50,51 +50,52 @@ def seed():
 
     try:
         # 1. Clean previous seed data if exists
-        admin_email = "lead.engineer@googlecloud.internal"
-        existing_user = db.query(User).filter(User.email == admin_email).first()
-        if existing_user:
-            print(f"[*] Found existing user {admin_email}, refreshing seed data...")
-            # We can delete workspaces owned by this user
-            workspaces = db.query(Workspace).filter(Workspace.owner_id == existing_user.id).all()
-            for ws in workspaces:
-                projects = db.query(Project).filter(Project.workspace_id == ws.id).all()
-                for p in projects:
-                    db.query(AgentFeedback).filter(AgentFeedback.project_id == p.id).delete()
-                    db.query(AgentExecution).filter(AgentExecution.project_id == p.id).delete()
-                    db.query(DataReadinessReport).filter(DataReadinessReport.project_id == p.id).delete()
-                    db.query(DocumentChunk).filter(DocumentChunk.project_id == p.id).delete()
-                    db.query(Finding).filter(Finding.project_id == p.id).delete()
-                    db.query(ProjectFile).filter(ProjectFile.project_id == p.id).delete()
-                    db.query(Artifact).filter(Artifact.project_id == p.id).delete()
-                    db.delete(p)
-                db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws.id).delete()
-                db.delete(ws)
-            db.delete(existing_user)
-            db.commit()
+        admin_email = "alex.chen@strataforge.io"
+        legacy_emails = ["lead.engineer@googlecloud.internal", "alex.chen@strataforge.io"]
+        for legacy in legacy_emails:
+            existing_user = db.query(User).filter(User.email == legacy).first()
+            if existing_user:
+                print(f"[*] Found existing user {legacy}, refreshing seed data...")
+                workspaces = db.query(Workspace).filter(Workspace.owner_id == existing_user.id).all()
+                for ws in workspaces:
+                    projects = db.query(Project).filter(Project.workspace_id == ws.id).all()
+                    for p in projects:
+                        db.query(AgentFeedback).filter(AgentFeedback.project_id == p.id).delete()
+                        db.query(AgentExecution).filter(AgentExecution.project_id == p.id).delete()
+                        db.query(DataReadinessReport).filter(DataReadinessReport.project_id == p.id).delete()
+                        db.query(DocumentChunk).filter(DocumentChunk.project_id == p.id).delete()
+                        db.query(Finding).filter(Finding.project_id == p.id).delete()
+                        db.query(ProjectFile).filter(ProjectFile.project_id == p.id).delete()
+                        db.query(Artifact).filter(Artifact.project_id == p.id).delete()
+                        db.delete(p)
+                    db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws.id).delete()
+                    db.delete(ws)
+                db.delete(existing_user)
+                db.commit()
 
-        # 2. Create Lead FDE Engineer User
-        print("[*] Creating Lead Forward Deployed Engineer user...")
+        # 2. Create Principal Cloud Architect User
+        print("[*] Creating Principal Cloud Architect user...")
         user_id = str(uuid.uuid4())
         lead_user = User(
             id=user_id,
             email=admin_email,
-            hashed_password=hash_password("GoogleFDE2027!"),
-            full_name="Lead FDE Engineer (Google Cloud Consulting)",
+            hashed_password=hash_password("StrataSecure#2026!"),
+            full_name="Alex Chen (Principal Cloud Architect)",
             is_active=True,
         )
         db.add(lead_user)
         db.commit()
         db.refresh(lead_user)
-        print(f"    -> User: {lead_user.email} (Password: GoogleFDE2027!)")
+        print(f"    -> User: {lead_user.email} (Password: StrataSecure#2026!)")
 
         # 3. Create Enterprise Workspace
         print("[*] Creating Client Transformation Workspace...")
         ws_id = str(uuid.uuid4())
         workspace = Workspace(
             id=ws_id,
-            name="Google Cloud Consulting - Retail Transformation",
-            slug="google-cloud-consulting-retail",
-            description="Client modernization workspace for Tier-1 retail enterprise migrating to Google Cloud Run and Vertex AI.",
+            name="Global Retail Transformation",
+            slug="global-retail-transformation",
+            description="Enterprise modernization workspace for Tier-1 retail systems migrating to Cloud Run and Vertex AI.",
             owner_id=lead_user.id,
         )
         db.add(workspace)
@@ -312,8 +313,8 @@ def seed():
         print("=" * 60)
         print(f"Login Credentials:")
         print(f"  Email:    {admin_email}")
-        print(f"  Password: GoogleFDE2027!")
-        print(f"  Role:     Lead Forward Deployed Engineer")
+        print(f"  Password: StrataSecure#2026!")
+        print(f"  Role:     Principal Cloud Architect")
         print("=" * 60)
 
     finally:

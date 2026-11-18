@@ -25,10 +25,10 @@ def run_e2e_verification():
     print(f"  ✅ Health: {health_data['status']} | Service: {health_data['service']} | Version: {health_data['version']}")
 
     # 2. Authentication Login
-    print("\n[Step 2] Authenticating as Lead FDE Engineer...")
+    print("\n[Step 2] Authenticating as Principal Cloud Architect...")
     login_payload = {
-        "email": "lead.engineer@googlecloud.internal",
-        "password": "GoogleFDE2027!"
+        "email": "alex.chen@strataforge.io",
+        "password": "StrataSecure#2026!"
     }
     r = client.post(f"{BASE_URL}/auth/login", json=login_payload)
     assert r.status_code == 200, f"Login failed: {r.status_code} {r.text}"

@@ -120,9 +120,9 @@ npm run dev
 Open your browser at **`http://localhost:5173`**.
 
 ### Default Seed Credentials
-- **Email:** `lead.engineer@googlecloud.internal`
-- **Password:** `GoogleFDE2027!`
-- **Role:** Lead Forward Deployed Engineer (Google Cloud Consulting)
+- **Email:** `alex.chen@strataforge.io`
+- **Password:** `StrataSecure#2026!`
+- **Role:** Principal Cloud Architect
 
 ---
 
