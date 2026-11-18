@@ -4,7 +4,6 @@ import {
   Layers,
   Terminal,
   Activity,
-  FileCheck2,
   Cpu,
   CheckCircle2,
   FolderGit2,
@@ -45,6 +44,7 @@ import {
 import { ToastContainer, type ToastMessage, type ToastType } from './components/Toast';
 import { CopyButton } from './components/CopyButton';
 import { DiffViewer } from './components/DiffViewer';
+import { Logo } from './components/Logo';
 
 interface BackendHealth {
   status: string;
@@ -1076,33 +1076,25 @@ export default function App() {
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(99,102,241,0.14),rgba(6,182,212,0.05),transparent)] z-0" />
 
       {/* Top Navbar */}
-      <header className="border-b border-slate-800/80 bg-[#080d1a]/85 backdrop-blur-xl px-6 py-3 flex items-center justify-between sticky top-0 z-40 shadow-xl">
-        <div className="flex items-center gap-4">
-          {/* Brand Logo */}
+      <header className="border-b border-slate-800/80 bg-[#080d1a]/95 backdrop-blur-xl px-6 py-2.5 flex items-center justify-between sticky top-0 z-40 shadow-xl">
+        <div className="flex items-center gap-6">
+          {/* Brand Logo & Name */}
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 rounded-xl text-white shadow-lg shadow-indigo-950/50 flex items-center justify-center">
-              <Zap className="w-5 h-5 fill-white/20" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-base font-black tracking-tight text-white font-mono bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                  StrataForge<span className="text-cyan-400">.ai</span>
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-950/80 to-purple-950/80 text-indigo-300 border border-indigo-700/50">
-                  Google FDE
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 font-medium">Enterprise Autonomous Cloud Engineering</p>
+            <Logo className="w-8 h-8" />
+            <div className="flex flex-col">
+              <span className="text-base font-bold tracking-tight text-white font-sans">
+                StrataForge
+              </span>
             </div>
           </div>
 
           {/* Breadcrumb Hierarchy */}
           {currentUser && activeWorkspace && (
-            <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-slate-800/80 text-xs">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-300 hover:border-slate-700 transition-colors">
+            <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-slate-800 text-xs">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/60 border border-slate-800/80 rounded-lg text-slate-300 hover:border-slate-700 transition-colors">
                 <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
                 <select
-                  className="bg-transparent text-slate-200 focus:outline-none cursor-pointer max-w-[180px] truncate"
+                  className="bg-transparent text-slate-200 focus:outline-none cursor-pointer max-w-[170px] truncate"
                   value={activeWorkspace?.id || ''}
                   onChange={(e) => {
                     const ws = workspaces.find((w) => w.id === e.target.value);
@@ -1121,10 +1113,10 @@ export default function App() {
 
               {activeProject ? (
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-300">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/60 border border-slate-800/80 rounded-lg text-slate-300">
                     <FolderGit2 className="w-3.5 h-3.5 text-cyan-400" />
                     <select
-                      className="bg-transparent text-cyan-200 font-medium focus:outline-none cursor-pointer max-w-[200px] truncate"
+                      className="bg-transparent text-cyan-200 font-medium focus:outline-none cursor-pointer max-w-[190px] truncate"
                       value={activeProject?.id || ''}
                       onChange={(e) => {
                         const proj = projects.find((p) => p.id === e.target.value);
@@ -1139,16 +1131,16 @@ export default function App() {
                     </select>
                   </div>
 
-                  {/* Dynamic Status Badge */}
+                  {/* Status Indicator */}
                   {findings.length === 0 && activeProject.status === 'ready_for_deployment' ? (
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 text-[10px] font-semibold flex items-center gap-1.5 shadow-sm shadow-emerald-950">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Ready for Cloud Run
                     </span>
                   ) : findings.length > 0 ? (
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/50 text-[10px] font-semibold flex items-center gap-1.5 shadow-sm shadow-amber-950">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/40 text-[11px] font-semibold flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                      {findings.length} Findings Flagged
+                      {findings.length} Findings Open
                     </span>
                   ) : null}
                 </div>
@@ -1157,37 +1149,24 @@ export default function App() {
           )}
         </div>
 
-        {/* Right Nav */}
-        <div className="flex items-center gap-3">
-          {/* FastAPI Telemetry Status Pill */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-xs">
-            <span className="relative flex h-2 w-2">
-              <span
-                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  health ? 'bg-emerald-400' : 'bg-rose-400'
-                }`}
-              />
-              <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${
-                  health ? 'bg-emerald-500' : 'bg-rose-500'
-                }`}
-              />
-            </span>
-            <span className="text-slate-300 text-[11px] font-mono">
-              {loading ? 'FastAPI...' : health ? `Engine v${health.version}` : error ? `Offline` : 'Offline'}
-            </span>
+        {/* Global Search & User Actions */}
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 border border-slate-800/80 rounded-lg text-xs text-slate-400 w-60 hover:border-slate-700 transition-colors cursor-text">
+            <Search className="w-3.5 h-3.5 text-slate-500" />
+            <span className="text-[11px] text-slate-400">Search rules, findings...</span>
+            <kbd className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">⌘K</kbd>
           </div>
 
           {currentUser ? (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-200">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900/80 border border-slate-800 text-xs text-slate-200">
                 <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="font-semibold text-slate-100">{currentUser.full_name || currentUser.email}</span>
+                <span className="font-medium text-slate-200">{currentUser.full_name || currentUser.email}</span>
               </div>
               <button
                 onClick={handleLogout}
                 title="Log Out"
-                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-xl transition-colors"
+                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition-colors"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -1198,9 +1177,9 @@ export default function App() {
                 setAuthError(null);
                 setShowAuthModal(true);
               }}
-              className="text-xs flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-950/50 transition-all"
+              className="text-xs flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-md transition-all"
             >
-              <LogIn className="w-3.5 h-3.5" /> Sign In / Register
+              <LogIn className="w-3.5 h-3.5" /> Sign In
             </button>
           )}
         </div>
@@ -1209,51 +1188,16 @@ export default function App() {
       {/* Main Body */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-64 border-r border-slate-800/80 bg-[#0b101b] p-4 flex flex-col justify-between hidden md:flex">
+        <aside className="w-64 border-r border-slate-800/80 bg-[#080d19] p-4 flex flex-col justify-between hidden md:flex">
           <div className="space-y-1">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-2">
-              Workspace & Projects
+              Auditing & Security
             </div>
             {[
               { id: 'overview', label: 'Platform Overview', icon: Layers },
-              { id: 'workspaces', label: 'Workspaces', icon: Briefcase, count: workspaces.length },
-              { id: 'projects', label: 'Enterprise Projects', icon: FolderGit2, count: projects.length },
-            ].map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as any)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
-                    isActive
-                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold shadow-md shadow-indigo-950/50 border-l-2 border-cyan-400'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-medium'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-300' : 'text-slate-500'}`} />
-                    {item.label}
-                  </div>
-                  {item.count !== undefined && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${isActive ? 'bg-indigo-950 text-cyan-200' : 'bg-slate-800/80 text-slate-400'}`}>
-                      {item.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 pt-4 py-2">
-              Diagnostics & Architecture
-            </div>
-            {[
-              { id: 'discovery', label: 'Environment Discovery', icon: Terminal },
               { id: 'diagnostics', label: 'Static Diagnostics', icon: Activity, count: findings.length },
+              { id: 'workbench', label: 'Remediation Workbench', icon: ClipboardCheck, badge: auditReport ? `${auditReport.production_readiness.readiness_index}%` : undefined },
               { id: 'readiness', label: 'Data & RAG Readiness', icon: Database, badge: readinessReport ? `${readinessReport.overall_score}%` : undefined },
-              { id: 'workbench', label: 'Production Workbench', icon: ClipboardCheck, badge: auditReport ? `${auditReport.production_readiness.readiness_index}%` : undefined },
-              { id: 'agents', label: 'Multi-Agent Reasoning', icon: Cpu, badge: agentHistory.length > 0 ? `${agentHistory.length} runs` : undefined },
-              { id: 'roadmap', label: '16-Week Roadmap', icon: FileCheck2 },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -1284,14 +1228,60 @@ export default function App() {
                 </button>
               );
             })}
+
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 pt-5 py-2">
+              Cloud & Automation
+            </div>
+            {[
+              { id: 'agents', label: 'Autonomous Subagents', icon: Cpu, badge: agentHistory.length > 0 ? `${agentHistory.length}` : undefined },
+              { id: 'discovery', label: 'Archive Inventory', icon: Terminal },
+              { id: 'workspaces', label: 'Workspaces', icon: Briefcase, count: workspaces.length },
+              { id: 'projects', label: 'Client Projects', icon: FolderGit2, count: projects.length },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as any)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
+                    isActive
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold shadow-md shadow-indigo-950/50 border-l-2 border-cyan-400'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-medium'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-300' : 'text-slate-500'}`} />
+                    {item.label}
+                  </div>
+                  {item.count !== undefined && item.count > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono">
+                      {item.count}
+                    </span>
+                  )}
+                  {item.badge !== undefined && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-950 text-cyan-300 border border-indigo-800/60 font-mono font-semibold">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1 text-xs">
-            <div className="text-slate-400 font-medium flex items-center justify-between">
-              <span>Phase 3 Milestone</span>
-              <span className="text-emerald-400 font-semibold">Week 8 Active</span>
+          {/* Clean Infrastructure Target Footer */}
+          <div className="p-3 bg-slate-900/40 border border-slate-800/60 rounded-xl space-y-1.5 text-xs">
+            <div className="flex items-center justify-between text-slate-400">
+              <span className="text-[11px] font-medium text-slate-400">Target Platform</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 font-medium">Production</span>
             </div>
-            <p className="text-[11px] text-slate-500">Specialized Subagents & 4-Agent Pipeline</p>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+              <span>Cloud Run v2 (asia-south1)</span>
+              <span className="flex items-center gap-1.5 font-mono text-emerald-400 text-[10px]">
+                <span className={`w-1.5 h-1.5 rounded-full ${health ? 'bg-emerald-400 animate-pulse' : loading ? 'bg-amber-400' : 'bg-rose-400'}`} />
+                {health ? 'Live' : loading ? 'Connecting...' : error || 'Offline'}
+              </span>
+            </div>
           </div>
         </aside>
 
