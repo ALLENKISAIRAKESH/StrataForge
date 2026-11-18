@@ -27,6 +27,11 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
 
+    # AI / LLM Configuration
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-1.5-pro"
+    ENABLE_LLM_FALLBACK: bool = True  # Deterministic offline grounding generator for tests/dev
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
 

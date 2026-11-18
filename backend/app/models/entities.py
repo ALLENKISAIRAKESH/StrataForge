@@ -94,6 +94,7 @@ class Project(Base):
     findings = relationship("Finding", back_populates="project", cascade="all, delete-orphan")
     chunks = relationship("DocumentChunk", back_populates="project", cascade="all, delete-orphan")
     readiness_reports = relationship("DataReadinessReport", back_populates="project", cascade="all, delete-orphan")
+    agent_executions = relationship("AgentExecution", back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_projects_workspace_name", "workspace_id", "name"),
@@ -214,3 +215,28 @@ class DataReadinessReport(Base):
     # Relationships
     project = relationship("Project", back_populates="readiness_reports")
     artifact = relationship("Artifact", back_populates="readiness_reports")
+
+
+class AgentExecution(Base):
+    __tablename__ = "agent_executions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    agent_type = Column(String(50), nullable=False)  # discovery, security, data_readiness, deployment_planner
+    model_name = Column(String(100), nullable=False)
+    status = Column(String(50), default="completed", nullable=False)  # queued, running, completed, failed
+    prompt_context = Column(Text, nullable=False)      # Input context provided to the agent
+    thought_chain_json = Column(Text, nullable=False)  # Step-by-step reasoning chain JSON
+    output_markdown = Column(Text, nullable=False)     # Formatted markdown reasoning & advice
+    structured_data_json = Column(Text, nullable=True) # Structured output (e.g. patches, risk matrices)
+    citations_json = Column(Text, nullable=False)      # Grounded citations list [{file_path, line_start, line_end, quote}]
+    execution_time_ms = Column(Integer, default=0, nullable=False)
+    tokens_used = Column(Integer, default=0, nullable=False)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="agent_executions")
+    user = relationship("User")
+

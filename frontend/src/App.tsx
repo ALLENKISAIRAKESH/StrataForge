@@ -29,7 +29,12 @@ import {
   BarChart2,
   Download,
   ClipboardCheck,
-  XCircle
+  XCircle,
+  Bot,
+  Brain,
+  Clock,
+  Quote,
+  Zap
 } from 'lucide-react';
 
 interface BackendHealth {
@@ -212,6 +217,35 @@ interface AuditReport {
   }>;
 }
 
+interface Citation {
+  file_path: string;
+  line_start?: number;
+  line_end?: number;
+  quote: string;
+}
+
+interface ThoughtStep {
+  step_number: number;
+  thought: string;
+  action?: string;
+  observation?: string;
+}
+
+interface AgentExecution {
+  id: string;
+  project_id: string;
+  agent_type: string;
+  model_name: string;
+  status: string;
+  thought_chain: ThoughtStep[];
+  output_markdown: string;
+  structured_data?: any;
+  citations: Citation[];
+  execution_time_ms: number;
+  tokens_used: number;
+  created_at: string;
+}
+
 export default function App() {
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -262,6 +296,13 @@ export default function App() {
   // Production Readiness Workbench State
   const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
+
+  // Multi-Agent Reasoning State
+  const [selectedAgentType, setSelectedAgentType] = useState<'discovery' | 'security' | 'data_readiness' | 'deployment_planner'>('discovery');
+  const [customInstruction, setCustomInstruction] = useState('');
+  const [isAgentRunning, setIsAgentRunning] = useState(false);
+  const [currentExecution, setCurrentExecution] = useState<AgentExecution | null>(null);
+  const [agentHistory, setAgentHistory] = useState<AgentExecution[]>([]);
 
   // 1. Health check
   useEffect(() => {
@@ -386,6 +427,23 @@ export default function App() {
       .then((res) => (res.ok ? res.json() : null))
       .then((rep: AuditReport | null) => setAuditReport(rep))
       .catch(() => setAuditReport(null));
+
+    fetch(`/api/v1/projects/${activeProject.id}/agents/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((hist: AgentExecution[]) => {
+        setAgentHistory(hist);
+        if (hist.length > 0) {
+          setCurrentExecution(hist[0]);
+        } else {
+          setCurrentExecution(null);
+        }
+      })
+      .catch(() => {
+        setAgentHistory([]);
+        setCurrentExecution(null);
+      });
   }, [token, activeProject]);
 
   // Authentication Handlers
@@ -429,6 +487,8 @@ export default function App() {
     setReadinessReport(null);
     setChunks([]);
     setAuditReport(null);
+    setAgentHistory([]);
+    setCurrentExecution(null);
   };
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
@@ -601,6 +661,34 @@ export default function App() {
       }
     } finally {
       setIsLoadingReport(false);
+    }
+  };
+
+  // Agent Reasoning Handler
+  const handleRunAgentReasoning = async () => {
+    if (!token || !activeProject) return;
+    setIsAgentRunning(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/agents/reason`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          agent_type: selectedAgentType,
+          custom_instruction: customInstruction.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Agent execution failed');
+      setCurrentExecution(data);
+      setAgentHistory([data, ...agentHistory]);
+      setActiveTab('agents');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsAgentRunning(false);
     }
   };
 
@@ -778,7 +866,7 @@ export default function App() {
               { id: 'diagnostics', label: 'Static Diagnostics', icon: Activity, count: findings.length },
               { id: 'readiness', label: 'Data & RAG Readiness', icon: Database, badge: readinessReport ? `${readinessReport.overall_score}%` : undefined },
               { id: 'workbench', label: 'Production Workbench', icon: ClipboardCheck, badge: auditReport ? `${auditReport.production_readiness.readiness_index}%` : undefined },
-              { id: 'agents', label: 'Multi-Agent Reasoning', icon: Cpu },
+              { id: 'agents', label: 'Multi-Agent Reasoning', icon: Cpu, badge: agentHistory.length > 0 ? `${agentHistory.length} runs` : undefined },
               { id: 'roadmap', label: '16-Week Roadmap', icon: FileCheck2 },
             ].map((item) => {
               const Icon = item.icon;
@@ -814,10 +902,10 @@ export default function App() {
 
           <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1 text-xs">
             <div className="text-slate-400 font-medium flex items-center justify-between">
-              <span>Phase 2 Milestone</span>
-              <span className="text-emerald-400 font-semibold">Week 6 Active</span>
+              <span>Phase 3 Milestone</span>
+              <span className="text-emerald-400 font-semibold">Week 7 Active</span>
             </div>
-            <p className="text-[11px] text-slate-500">Production Readiness & Report Generator</p>
+            <p className="text-[11px] text-slate-500">Gemini LLM Foundation & Agent Core</p>
           </div>
         </aside>
 
@@ -1677,6 +1765,253 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'agents' && (
+            <div className="max-w-5xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Cpu className="w-5 h-5 text-blue-400" />
+                    Multi-Agent Reasoning Architecture
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                      Gemini + ADK Core
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Autonomous engineering personas reasoning over deterministic static facts with exact file and line grounding.
+                  </p>
+                </div>
+              </div>
+
+              {/* Subagent Persona Selection Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  {
+                    id: 'discovery',
+                    title: 'Discovery Specialist',
+                    icon: Terminal,
+                    desc: 'Explains codebase topology, tech stacks, and microservice boundaries.',
+                    tag: 'Architecture',
+                    color: 'blue',
+                  },
+                  {
+                    id: 'security',
+                    title: 'Security Reviewer',
+                    icon: ShieldCheck,
+                    desc: 'Evaluates AST findings, hardcoded secrets, and CVSS root-cause impact.',
+                    tag: 'Security & AST',
+                    color: 'rose',
+                  },
+                  {
+                    id: 'data_readiness',
+                    title: 'Data & RAG Architect',
+                    icon: Database,
+                    desc: 'Analyzes SQL relational constraints, chunk density, and embedding suitability.',
+                    tag: 'RAG Pipeline',
+                    color: 'purple',
+                  },
+                  {
+                    id: 'deployment_planner',
+                    title: 'Cloud Run Strategist',
+                    icon: Zap,
+                    desc: 'Formulates Google Cloud Run migration specs, secret bindings, and probes.',
+                    tag: 'Deployment',
+                    color: 'emerald',
+                  },
+                ].map((agent) => {
+                  const Icon = agent.icon;
+                  const isSelected = selectedAgentType === agent.id;
+                  return (
+                    <div
+                      key={agent.id}
+                      onClick={() => setSelectedAgentType(agent.id as any)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                        isSelected
+                          ? 'bg-blue-950/30 border-blue-500 shadow-md'
+                          : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="p-1.5 rounded-lg bg-slate-950 border border-slate-800 text-blue-400">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400 font-mono">
+                          {agent.tag}
+                        </span>
+                      </div>
+                      <h4 className="font-semibold text-white text-xs">{agent.title}</h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">{agent.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action Box */}
+              <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                    <span>Optional Enterprise Constraint or Specific Prompt</span>
+                    <span className="text-[11px] text-slate-500 font-normal">Grounded exclusively on uploaded code facts</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customInstruction}
+                    onChange={(e) => setCustomInstruction(e.target.value)}
+                    placeholder="e.g. Focus on container startup latency and Secret Manager integration..."
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                    <Brain className="w-3.5 h-3.5 text-blue-400" />
+                    Model: <span className="font-mono text-slate-300">gemini-1.5-pro</span> (with deterministic grounding fallback)
+                  </div>
+                  <button
+                    onClick={handleRunAgentReasoning}
+                    disabled={isAgentRunning || !activeProject}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                  >
+                    <Bot className="w-4 h-4" />
+                    {isAgentRunning ? 'Reasoning Across Evidence...' : 'Run Agent Reasoning'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Current Execution Output */}
+              {currentExecution ? (
+                <div className="space-y-6">
+                  {/* Thought Chain Accordion */}
+                  <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-2">
+                        <Brain className="w-4 h-4 text-purple-400" />
+                        Autonomous Thought Chain ({currentExecution.thought_chain.length} Steps)
+                      </h3>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {currentExecution.execution_time_ms}ms
+                        </span>
+                        <span>&bull;</span>
+                        <span>~{currentExecution.tokens_used} tokens</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5 pt-2">
+                      {currentExecution.thought_chain.map((step) => (
+                        <div
+                          key={step.step_number}
+                          className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5 text-xs"
+                        >
+                          <div className="flex items-center gap-2 text-blue-400 font-semibold text-[11px]">
+                            <span className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800/80">
+                              Step {step.step_number}
+                            </span>
+                            <span>{step.thought}</span>
+                          </div>
+                          {step.action && (
+                            <div className="text-slate-400 text-[11px] pl-2 border-l border-slate-800">
+                              <span className="text-slate-500 font-mono">Action: </span>
+                              {step.action}
+                            </div>
+                          )}
+                          {step.observation && (
+                            <div className="text-slate-300 text-[11px] pl-2 border-l border-blue-900/50">
+                              <span className="text-emerald-400 font-mono">Observation: </span>
+                              {step.observation}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Grounded Citations Drawer */}
+                  {currentExecution.citations.length > 0 && (
+                    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                      <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-2">
+                        <Quote className="w-4 h-4 text-emerald-400" />
+                        Deterministic Evidence Citations ({currentExecution.citations.length})
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {currentExecution.citations.map((c, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1 text-xs"
+                          >
+                            <div className="font-mono text-blue-400 text-[11px] font-semibold flex items-center justify-between">
+                              <span>{c.file_path}</span>
+                              {c.line_start && (
+                                <span className="text-slate-500">L{c.line_start}-{c.line_end}</span>
+                              )}
+                            </div>
+                            <pre className="text-[10px] text-slate-300 font-mono bg-slate-900 p-2 rounded truncate">
+                              {c.quote || 'Citing configuration block'}
+                            </pre>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Formatted Markdown Analysis */}
+                  <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <Bot className="w-4 h-4 text-blue-400" />
+                      Agent Synthesis & Technical Advisory
+                    </h3>
+                    <div className="p-5 bg-slate-950 rounded-xl border border-slate-800/80 text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">
+                      {currentExecution.output_markdown}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
+                  <Bot className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                  <h3 className="text-sm font-semibold text-white">No Agent Reasoning Executed Yet</h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                    Select an engineering persona above and click "Run Agent Reasoning" to generate structured, evidence-backed recommendations.
+                  </p>
+                </div>
+              )}
+
+              {/* Execution History */}
+              {agentHistory.length > 0 && (
+                <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    Agent Reasoning History ({agentHistory.length} runs)
+                  </h3>
+                  <div className="space-y-2">
+                    {agentHistory.map((hist) => (
+                      <div
+                        key={hist.id}
+                        onClick={() => setCurrentExecution(hist)}
+                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+                          currentExecution?.id === hist.id
+                            ? 'bg-blue-950/20 border-blue-500/40'
+                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Bot className="w-4 h-4 text-blue-400" />
+                          <span className="text-xs font-semibold text-white uppercase font-mono">
+                            {hist.agent_type.replace('_', ' ')}
+                          </span>
+                          <span className="text-[11px] text-slate-500">&bull;</span>
+                          <span className="text-[11px] text-slate-400 font-mono">{hist.model_name}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono">
+                          <span>{new Date(hist.created_at).toLocaleTimeString()}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                            {hist.citations.length} citation(s)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 6: ROADMAP */}
           {activeTab === 'roadmap' && (
             <div className="max-w-4xl mx-auto space-y-4">
@@ -1721,9 +2056,16 @@ export default function App() {
                   {
                     phase: 'Phase 2: Week 6',
                     title: 'Production Readiness Workbench & Report Generator',
-                    status: 'Completed (Tested)',
+                    status: 'Completed',
                     active: true,
                     details: 'Executive audit reports, composite production readiness index, Google Cloud Run gate checklists, and downloadable Markdown/JSON exports.',
+                  },
+                  {
+                    phase: 'Phase 3: Week 7',
+                    title: 'LLM Foundation Layer & Agent Core Architecture',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Gemini 1.5/2.0 API client, Pydantic structured output validation, deterministic grounding engine, and thought chain telemetry.',
                   },
                 ].map((item, idx) => (
                   <div
@@ -1747,16 +2089,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {activeTab === 'agents' && (
-            <div className="max-w-4xl mx-auto p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
-              <Cpu className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-white">Multi-Agent Reasoning Engine</h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Scheduled for Phase 3 &bull; Gemini + Google ADK agent orchestration over deterministic findings.
-              </p>
             </div>
           )}
         </main>

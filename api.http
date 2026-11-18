@@ -113,3 +113,40 @@ Authorization: Bearer {{authToken}}
 ### 16. Download Executive Audit Report (JSON)
 GET {{baseUrl}}/projects/{{projectId}}/report/download?format=json HTTP/1.1
 Authorization: Bearer {{authToken}}
+
+### 17. Trigger Multi-Agent Reasoning (Discovery Specialist)
+# @name agentReasonDiscovery
+POST {{baseUrl}}/projects/{{projectId}}/agents/reason HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "agent_type": "discovery",
+  "custom_instruction": "Evaluate microservice topology and ingress endpoints"
+}
+
+### 18. Trigger Multi-Agent Reasoning (Security Reviewer)
+# @name agentReasonSecurity
+POST {{baseUrl}}/projects/{{projectId}}/agents/reason HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "agent_type": "security",
+  "custom_instruction": "Assess CVSS severity of container defects and secrets"
+}
+
+### 19. Trigger Multi-Agent Reasoning (Deployment Planner)
+# @name agentReasonDeployment
+POST {{baseUrl}}/projects/{{projectId}}/agents/reason HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "agent_type": "deployment_planner",
+  "custom_instruction": "Provide gcloud Cloud Run deploy commands and Secret Manager bindings"
+}
+
+### 20. List Agent Execution History
+GET {{baseUrl}}/projects/{{projectId}}/agents/history HTTP/1.1
+Authorization: Bearer {{authToken}}

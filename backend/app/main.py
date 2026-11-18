@@ -13,6 +13,7 @@ from backend.app.api.v1.endpoints.artifacts import router as artifacts_router
 from backend.app.api.v1.endpoints.diagnostics import router as diagnostics_router
 from backend.app.api.v1.endpoints.data_readiness import router as data_readiness_router
 from backend.app.api.v1.endpoints.reports import router as reports_router
+from backend.app.api.v1.endpoints.agents import router as agents_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,6 +60,7 @@ app.include_router(artifacts_router, prefix=settings.API_V1_STR, tags=["Artifact
 app.include_router(diagnostics_router, prefix=settings.API_V1_STR, tags=["Static Diagnostics"])
 app.include_router(data_readiness_router, prefix=settings.API_V1_STR, tags=["Data Readiness & RAG"])
 app.include_router(reports_router, prefix=settings.API_V1_STR, tags=["Production Readiness & Reports"])
+app.include_router(agents_router, prefix=settings.API_V1_STR, tags=["Multi-Agent Reasoning"])
 
 if __name__ == "__main__":
     import uvicorn

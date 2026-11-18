@@ -26,6 +26,12 @@ from backend.app.schemas.data_readiness import (
     DocumentChunkResponse,
     DataReadinessReportResponse,
 )
+from backend.app.schemas.agent import (
+    Citation,
+    ThoughtStep,
+    AgentReasoningRequest,
+    AgentExecutionResponse,
+)
 
 __all__ = [
     "UserCreate",
@@ -50,4 +56,8 @@ __all__ = [
     "DiagnosticsSummary",
     "DocumentChunkResponse",
     "DataReadinessReportResponse",
+    "Citation",
+    "ThoughtStep",
+    "AgentReasoningRequest",
+    "AgentExecutionResponse",
 ]

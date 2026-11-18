@@ -8,6 +8,7 @@ from backend.app.models.entities import (
     Finding,
     DocumentChunk,
     DataReadinessReport,
+    AgentExecution,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "Finding",
     "DocumentChunk",
     "DataReadinessReport",
+    "AgentExecution",
 ]
