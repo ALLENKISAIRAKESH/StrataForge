@@ -20,7 +20,13 @@ import {
   Play,
   Filter,
   CheckSquare,
-  AlertCircle
+  AlertCircle,
+  Database,
+  BookOpen,
+  Search,
+  Sparkles,
+  FileText,
+  BarChart2
 } from 'lucide-react';
 
 interface BackendHealth {
@@ -98,11 +104,55 @@ interface Finding {
   created_at: string;
 }
 
+interface DataReadinessMetrics {
+  structured: {
+    total_sql_files: number;
+    total_tables: number;
+    tables_with_primary_key: number;
+    total_indexes: number;
+  };
+  unstructured: {
+    total_doc_files: number;
+    total_chunks: number;
+    total_tokens_estimated: number;
+    chunks_with_headings: number;
+    average_tokens_per_chunk: number;
+  };
+}
+
+interface DataReadinessReport {
+  id: string;
+  project_id: string;
+  artifact_id: string;
+  overall_score: number;
+  structured_score: number;
+  unstructured_score: number;
+  metrics: DataReadinessMetrics;
+  recommendations: string[];
+  total_chunks: number;
+  created_at: string;
+}
+
+interface DocumentChunk {
+  id: string;
+  file_path: string;
+  chunk_index: number;
+  content: string;
+  token_count: number;
+  metadata: {
+    line_start?: number;
+    line_end?: number;
+    headings?: string[];
+    char_count?: number;
+  };
+  created_at: string;
+}
+
 export default function App() {
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'workspaces' | 'projects' | 'discovery' | 'diagnostics' | 'agents' | 'roadmap'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'workspaces' | 'projects' | 'discovery' | 'diagnostics' | 'readiness' | 'agents' | 'roadmap'>('overview');
 
   // Auth State
   const [token, setToken] = useState<string | null>(localStorage.getItem('fde_auth_token'));
@@ -138,6 +188,12 @@ export default function App() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<string>('all');
+
+  // Data Readiness State
+  const [readinessReport, setReadinessReport] = useState<DataReadinessReport | null>(null);
+  const [chunks, setChunks] = useState<DocumentChunk[]>([]);
+  const [isAssessingReadiness, setIsAssessingReadiness] = useState(false);
+  const [chunkSearch, setChunkSearch] = useState('');
 
   // 1. Health check
   useEffect(() => {
@@ -223,6 +279,8 @@ export default function App() {
     if (!token || !activeProject) {
       setInventory(null);
       setFindings([]);
+      setReadinessReport(null);
+      setChunks([]);
       return;
     }
     fetch(`/api/v1/projects/${activeProject.id}/inventory`, {
@@ -238,6 +296,20 @@ export default function App() {
       .then((res) => (res.ok ? res.json() : []))
       .then((fList: Finding[]) => setFindings(fList))
       .catch(() => setFindings([]));
+
+    fetch(`/api/v1/projects/${activeProject.id}/data-readiness`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((rep: DataReadinessReport | null) => setReadinessReport(rep))
+      .catch(() => setReadinessReport(null));
+
+    fetch(`/api/v1/projects/${activeProject.id}/chunks?limit=100`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((cList: DocumentChunk[]) => setChunks(cList))
+      .catch(() => setChunks([]));
   }, [token, activeProject]);
 
   // Authentication Handlers
@@ -278,6 +350,8 @@ export default function App() {
     setActiveProject(null);
     setInventory(null);
     setFindings([]);
+    setReadinessReport(null);
+    setChunks([]);
   };
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
@@ -387,6 +461,34 @@ export default function App() {
     }
   };
 
+  // Run Data Readiness Handler
+  const handleAssessReadiness = async () => {
+    if (!token || !activeProject) return;
+    setIsAssessingReadiness(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/data-readiness`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Data readiness assessment failed');
+      setReadinessReport(data);
+
+      const chunksRes = await fetch(`/api/v1/projects/${activeProject.id}/chunks?limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (chunksRes.ok) {
+        const chunkData = await chunksRes.json();
+        setChunks(chunkData);
+      }
+      setActiveTab('readiness');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsAssessingReadiness(false);
+    }
+  };
+
   // Status Update Handler
   const handleUpdateFindingStatus = async (findingId: string, newStatus: string) => {
     if (!token) return;
@@ -417,6 +519,16 @@ export default function App() {
     medium: findings.filter((f) => f.severity === 'medium').length,
     low: findings.filter((f) => f.severity === 'low').length,
   };
+
+  const filteredChunks = chunks.filter((c) => {
+    if (!chunkSearch.trim()) return true;
+    const q = chunkSearch.toLowerCase();
+    return (
+      c.file_path.toLowerCase().includes(q) ||
+      c.content.toLowerCase().includes(q) ||
+      (c.metadata?.headings && c.metadata.headings.some((h) => h.toLowerCase().includes(q)))
+    );
+  });
 
   return (
     <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans">
@@ -549,6 +661,7 @@ export default function App() {
             {[
               { id: 'discovery', label: 'Environment Discovery', icon: Terminal },
               { id: 'diagnostics', label: 'Static Diagnostics', icon: Activity, count: findings.length },
+              { id: 'readiness', label: 'Data & RAG Readiness', icon: Database, badge: readinessReport ? `${readinessReport.overall_score}%` : undefined },
               { id: 'agents', label: 'Multi-Agent Reasoning', icon: Cpu },
               { id: 'roadmap', label: '16-Week Roadmap', icon: FileCheck2 },
             ].map((item) => {
@@ -573,6 +686,11 @@ export default function App() {
                       {item.count}
                     </span>
                   )}
+                  {item.badge !== undefined && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-950 text-blue-300 border border-blue-800 font-mono">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -581,9 +699,9 @@ export default function App() {
           <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1 text-xs">
             <div className="text-slate-400 font-medium flex items-center justify-between">
               <span>Phase 2 Milestone</span>
-              <span className="text-emerald-400 font-semibold">Week 4 Active</span>
+              <span className="text-emerald-400 font-semibold">Week 5 Active</span>
             </div>
-            <p className="text-[11px] text-slate-500">Deterministic Static Diagnostics & Evidence</p>
+            <p className="text-[11px] text-slate-500">Data Readiness & RAG Suitability Engine</p>
           </div>
         </aside>
 
@@ -603,13 +721,22 @@ export default function App() {
                     </p>
                   </div>
                   {currentUser && inventory && (
-                    <button
-                      onClick={handleRunDiagnostics}
-                      disabled={isDiagnosing}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
-                    >
-                      <Play className="w-4 h-4" /> {isDiagnosing ? 'Running Rules...' : 'Run Diagnostics'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleRunDiagnostics}
+                        disabled={isDiagnosing}
+                        className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                      >
+                        <Play className="w-3.5 h-3.5" /> {isDiagnosing ? 'Running Rules...' : 'Run Diagnostics'}
+                      </button>
+                      <button
+                        onClick={handleAssessReadiness}
+                        disabled={isAssessingReadiness}
+                        className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                      >
+                        <Database className="w-3.5 h-3.5" /> {isAssessingReadiness ? 'Evaluating...' : 'Assess Readiness'}
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
@@ -629,7 +756,7 @@ export default function App() {
               </div>
 
               {/* Status Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
                   <div className="text-slate-400 text-xs font-medium uppercase mb-1">Target Project</div>
                   <div className="text-xl font-bold text-white truncate">
@@ -667,6 +794,22 @@ export default function App() {
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
                     {findings.length > 0 ? `${severityCounts.high} High, ${severityCounts.medium} Medium` : 'Evidence-backed checks'}
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Data & RAG Readiness</div>
+                  <div className="text-xl font-bold flex items-center gap-1.5 text-base">
+                    {readinessReport ? (
+                      <span className={readinessReport.overall_score >= 70 ? 'text-emerald-400' : 'text-amber-400'}>
+                        {readinessReport.overall_score}% Ready
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-normal text-sm">Not Assessed</span>
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    {readinessReport ? `${chunks.length} chunks indexed` : 'Structured & RAG evaluation'}
                   </div>
                 </div>
               </div>
@@ -1009,6 +1152,185 @@ export default function App() {
             </div>
           )}
 
+          {/* TAB: DATA & RAG READINESS */}
+          {activeTab === 'readiness' && (
+            <div className="max-w-5xl mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Database className="w-5 h-5 text-blue-400" />
+                    Data Readiness & RAG Suitability Engine
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Deterministic evaluation of SQL schemas and hierarchical document chunking for production RAG pipelines.
+                  </p>
+                </div>
+                {currentUser && inventory && (
+                  <button
+                    onClick={handleAssessReadiness}
+                    disabled={isAssessingReadiness}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {isAssessingReadiness ? 'Evaluating Data...' : 'Run Readiness Assessment'}
+                  </button>
+                )}
+              </div>
+
+              {!readinessReport ? (
+                <div className="p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
+                  <Database className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                  <h3 className="text-sm font-semibold text-white">No Assessment Performed Yet</h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                    Upload an enterprise project archive and click "Run Readiness Assessment" to evaluate schema integrity and generate semantic document chunks.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Scoreboard Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <div className="text-slate-400 text-xs font-medium uppercase mb-1">Overall RAG Readiness</div>
+                      <div className={`text-2xl font-black ${readinessReport.overall_score >= 70 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {readinessReport.overall_score}%
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        {readinessReport.overall_score >= 70 ? 'Production Ready' : 'Needs Schema/Docs Attention'}
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <div className="text-slate-400 text-xs font-medium uppercase mb-1">Structured Data Score</div>
+                      <div className="text-2xl font-black text-blue-400">
+                        {readinessReport.structured_score}%
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        {readinessReport.metrics.structured.tables_with_primary_key} / {readinessReport.metrics.structured.total_tables} PK constraints
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <div className="text-slate-400 text-xs font-medium uppercase mb-1">Unstructured RAG Score</div>
+                      <div className="text-2xl font-black text-indigo-400">
+                        {readinessReport.unstructured_score}%
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        {readinessReport.metrics.unstructured.chunks_with_headings} / {readinessReport.total_chunks} heading-aligned chunks
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <div className="text-slate-400 text-xs font-medium uppercase mb-1">Indexed Chunks</div>
+                      <div className="text-2xl font-black text-purple-400">
+                        {readinessReport.total_chunks}
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        ~{readinessReport.metrics.unstructured.total_tokens_estimated} tokens extracted
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4 text-blue-400" />
+                      Readiness Findings & Remediation Recommendations
+                    </h3>
+                    <div className="space-y-2">
+                      {readinessReport.recommendations.map((rec, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-start gap-3 p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs text-slate-300"
+                        >
+                          <div className="mt-0.5 text-blue-400">•</div>
+                          <div className="leading-relaxed">{rec}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Chunks Explorer */}
+                  <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-emerald-400" />
+                          Document Chunks Explorer ({filteredChunks.length})
+                        </h3>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Deterministic sliding window chunking with line tracking and markdown hierarchy tags.
+                        </p>
+                      </div>
+                      <div className="relative w-full sm:w-64">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
+                        <input
+                          type="text"
+                          value={chunkSearch}
+                          onChange={(e) => setChunkSearch(e.target.value)}
+                          placeholder="Search chunks, paths, headings..."
+                          className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {filteredChunks.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500 border border-slate-800/60 rounded-lg">
+                        No chunks match your search query.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                        {filteredChunks.map((chunk) => (
+                          <div
+                            key={chunk.id}
+                            className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-2 hover:border-slate-700 transition-colors"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5 text-blue-400" />
+                                <span className="font-mono text-slate-200 font-semibold">{chunk.file_path}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
+                                  Chunk #{chunk.chunk_index}
+                                </span>
+                                {chunk.metadata?.line_start && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
+                                    L{chunk.metadata.line_start}-L{chunk.metadata.line_end}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 font-mono">
+                                  ~{chunk.token_count} tokens
+                                </span>
+                              </div>
+                            </div>
+
+                            {chunk.metadata?.headings && chunk.metadata.headings.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+                                <span className="text-slate-500">Section:</span>
+                                {chunk.metadata.headings.map((h, hIdx) => (
+                                  <span
+                                    key={hIdx}
+                                    className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 font-medium"
+                                  >
+                                    #{h}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <pre className="p-3 bg-[#0a0e17] rounded-lg text-[11px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap leading-relaxed border border-slate-900">
+                              {chunk.content}
+                            </pre>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 6: ROADMAP */}
           {activeTab === 'roadmap' && (
             <div className="max-w-4xl mx-auto space-y-4">
@@ -1039,15 +1361,15 @@ export default function App() {
                   {
                     phase: 'Phase 2: Week 4',
                     title: 'Static Diagnostic Rule Engine & Evidence Collection',
-                    status: 'Completed (Tested)',
+                    status: 'Completed',
                     active: true,
                     details: 'Deterministic inspection rules for Dockerfiles, OpenAPI, SQL schemas, and unpinned dependencies with exact line citations.',
                   },
                   {
                     phase: 'Phase 2: Week 5',
                     title: 'Data Readiness & RAG Suitability Engine',
-                    status: 'Next Up',
-                    active: false,
+                    status: 'Completed (Tested)',
+                    active: true,
                     details: 'Chunking quality, metadata extraction, semantic segmentation, and RAG retrieval preparation.',
                   },
                 ].map((item, idx) => (

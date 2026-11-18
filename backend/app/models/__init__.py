@@ -6,6 +6,8 @@ from backend.app.models.entities import (
     Artifact,
     ProjectFile,
     Finding,
+    DocumentChunk,
+    DataReadinessReport,
 )
 
 __all__ = [
@@ -16,4 +18,6 @@ __all__ = [
     "Artifact",
     "ProjectFile",
     "Finding",
+    "DocumentChunk",
+    "DataReadinessReport",
 ]

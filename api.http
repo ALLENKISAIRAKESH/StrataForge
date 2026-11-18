@@ -88,3 +88,16 @@ Content-Type: application/json
 {
   "status": "acknowledged"
 }
+
+### 11. Trigger Data Readiness Assessment
+# @name triggerReadiness
+POST {{baseUrl}}/projects/{{projectId}}/data-readiness HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 12. Get Latest Data Readiness Report
+GET {{baseUrl}}/projects/{{projectId}}/data-readiness HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 13. List Document Chunks
+GET {{baseUrl}}/projects/{{projectId}}/chunks?limit=50&offset=0 HTTP/1.1
+Authorization: Bearer {{authToken}}

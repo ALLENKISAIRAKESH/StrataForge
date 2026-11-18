@@ -22,6 +22,10 @@ from backend.app.schemas.finding import (
     FindingResponse,
     DiagnosticsSummary,
 )
+from backend.app.schemas.data_readiness import (
+    DocumentChunkResponse,
+    DataReadinessReportResponse,
+)
 
 __all__ = [
     "UserCreate",
@@ -44,4 +48,6 @@ __all__ = [
     "FindingStatusUpdate",
     "FindingResponse",
     "DiagnosticsSummary",
+    "DocumentChunkResponse",
+    "DataReadinessReportResponse",
 ]

@@ -92,6 +92,8 @@ class Project(Base):
     artifacts = relationship("Artifact", back_populates="project", cascade="all, delete-orphan")
     files = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
     findings = relationship("Finding", back_populates="project", cascade="all, delete-orphan")
+    chunks = relationship("DocumentChunk", back_populates="project", cascade="all, delete-orphan")
+    readiness_reports = relationship("DataReadinessReport", back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_projects_workspace_name", "workspace_id", "name"),
@@ -116,6 +118,8 @@ class Artifact(Base):
     project = relationship("Project", back_populates="artifacts")
     files = relationship("ProjectFile", back_populates="artifact", cascade="all, delete-orphan")
     findings = relationship("Finding", back_populates="artifact", cascade="all, delete-orphan")
+    chunks = relationship("DocumentChunk", back_populates="artifact", cascade="all, delete-orphan")
+    readiness_reports = relationship("DataReadinessReport", back_populates="artifact", cascade="all, delete-orphan")
 
 
 class ProjectFile(Base):
@@ -148,10 +152,10 @@ class Finding(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     artifact_id = Column(String(36), ForeignKey("artifacts.id", ondelete="CASCADE"), nullable=False, index=True)
-    rule_id = Column(String(50), nullable=False, index=True)       # e.g. DOCKER_001, DEP_001
-    category = Column(String(50), nullable=False, index=True)      # container, security, dependency, database, api_spec
+    rule_id = Column(String(50), nullable=False, index=True)
+    category = Column(String(50), nullable=False, index=True)
     title = Column(String(255), nullable=False)
-    severity = Column(String(20), nullable=False, index=True)      # critical, high, medium, low, info
+    severity = Column(String(20), nullable=False, index=True)
     confidence = Column(Float, default=1.0, nullable=False)
     file_path = Column(String(500), nullable=False)
     line_start = Column(Integer, nullable=False)
@@ -159,7 +163,7 @@ class Finding(Base):
     evidence = Column(Text, nullable=False)
     recommended_action = Column(Text, nullable=False)
     validation = Column(Text, nullable=False)
-    status = Column(String(30), default="open", nullable=False)    # open, acknowledged, resolved, false_positive
+    status = Column(String(30), default="open", nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
@@ -170,3 +174,43 @@ class Finding(Base):
         Index("ix_findings_proj_sev", "project_id", "severity"),
         Index("ix_findings_proj_status", "project_id", "status"),
     )
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    artifact_id = Column(String(36), ForeignKey("artifacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_path = Column(String(500), nullable=False, index=True)
+    chunk_index = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    token_count = Column(Integer, default=0, nullable=False)
+    metadata_json = Column(Text, nullable=True)  # JSON string: headings, line numbers, character offsets
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="chunks")
+    artifact = relationship("Artifact", back_populates="chunks")
+
+    __table_args__ = (
+        Index("ix_chunks_proj_file", "project_id", "file_path"),
+    )
+
+
+class DataReadinessReport(Base):
+    __tablename__ = "data_readiness_reports"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    artifact_id = Column(String(36), ForeignKey("artifacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    overall_score = Column(Float, nullable=False)       # 0 - 100
+    structured_score = Column(Float, nullable=False)    # 0 - 100
+    unstructured_score = Column(Float, nullable=False)  # 0 - 100
+    metrics_json = Column(Text, nullable=False)         # Detailed stats JSON
+    recommendations_json = Column(Text, nullable=False) # List of recommended improvements JSON
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="readiness_reports")
+    artifact = relationship("Artifact", back_populates="readiness_reports")
