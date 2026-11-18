@@ -317,7 +317,7 @@ export default function App() {
   };
 
   // Auth State
-  const [token, setToken] = useState<string | null>(localStorage.getItem('fde_auth_token'));
+  const [token, setToken] = useState<string | null>(localStorage.getItem('strataforge_auth_token'));
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -418,7 +418,7 @@ export default function App() {
       .then((user: User) => setCurrentUser(user))
       .catch(() => {
         setToken(null);
-        localStorage.removeItem('fde_auth_token');
+        localStorage.removeItem('strataforge_auth_token');
       });
   }, [token]);
 
@@ -566,7 +566,7 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Authentication failed');
 
-      localStorage.setItem('fde_auth_token', data.access_token);
+      localStorage.setItem('strataforge_auth_token', data.access_token);
       setToken(data.access_token);
       setCurrentUser(data.user);
       setShowAuthModal(false);
@@ -577,7 +577,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('fde_auth_token');
+    localStorage.removeItem('strataforge_auth_token');
     setToken(null);
     setCurrentUser(null);
     setWorkspaces([]);
@@ -2774,7 +2774,7 @@ export default function App() {
           {/* TAB 6: ROADMAP */}
           {activeTab === 'roadmap' && (
             <div className="max-w-4xl mx-auto space-y-4">
-              <h2 className="text-xl font-bold text-white">16-Week Google FDE Execution Plan</h2>
+              <h2 className="text-xl font-bold text-white">Cloud Architecture & Engineering Execution Plan</h2>
               <div className="space-y-3 mt-4">
                 {[
                   {
@@ -2884,7 +2884,7 @@ export default function App() {
                   },
                   {
                     phase: 'Phase 4: Week 16',
-                    title: 'Capstone Showcase & Google FDE Portfolio',
+                    title: 'Production Capstone & Engineering Portfolio',
                     status: 'Completed (Tested)',
                     active: true,
                     details: 'Complete executive architecture blueprint, Google Cloud Consulting (GCC) competency showcase, full-stack test suite (100% pass), and deployment runbook.',
