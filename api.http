@@ -230,3 +230,16 @@ Content-Type: application/json
 ### 30. Download Complete Terraform Directory Bundle (.zip)
 GET {{baseUrl}}/projects/{{projectId}}/infra/terraform/download HTTP/1.1
 Authorization: Bearer {{authToken}}
+
+### 31. Observability Prometheus Metrics Exporter
+GET {{baseUrl}}/metrics HTTP/1.1
+
+### 32. Trigger Automated Evaluation & Benchmark Suite
+# @name runBenchmarks
+POST {{baseUrl}}/benchmarks/run HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 33. Get Latest Benchmark Precision / Recall / Grounding Score
+GET {{baseUrl}}/benchmarks/latest HTTP/1.1
+Authorization: Bearer {{authToken}}
+

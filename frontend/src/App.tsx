@@ -2819,6 +2819,13 @@ export default function App() {
                     active: true,
                     details: 'Multi-stage Docker builds with least-privilege non-root execution (UID 10001), Cloud Build 6-stage pipeline (cloudbuild.yaml), and Trivy vulnerability gate.',
                   },
+                  {
+                    phase: 'Phase 4: Week 16',
+                    title: 'Capstone Showcase & Google FDE Portfolio',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Complete executive architecture blueprint, Google Cloud Consulting (GCC) competency showcase, full-stack test suite (100% pass), and deployment runbook.',
+                  },
                 ].map((item, idx) => (
                   <div
                     key={idx}

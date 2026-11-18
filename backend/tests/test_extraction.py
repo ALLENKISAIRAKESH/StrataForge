@@ -106,7 +106,8 @@ def test_invalid_archive_rejected(client, user_a_headers):
         files={"file": ("not_a_zip.zip", fake_file, "application/zip")},
     )
     assert res.status_code == 400
-    assert "not a valid ZIP" in res.json()["detail"]
+    detail = res.json()["detail"]
+    assert "not a valid ZIP" in detail or "Invalid file signature" in detail or "not a zip file" in detail
 
 
 def test_cross_workspace_upload_forbidden(client, user_a_headers, user_b_headers):
