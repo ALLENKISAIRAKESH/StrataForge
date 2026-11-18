@@ -28,6 +28,13 @@ class AgentReasoningRequest(BaseModel):
     )
 
 
+class AgentPipelineRequest(BaseModel):
+    custom_instruction: Optional[str] = Field(
+        None,
+        description="Optional enterprise constraint or specific question to guide reasoning across all stages",
+    )
+
+
 class AgentExecutionResponse(BaseModel):
     id: str
     project_id: str

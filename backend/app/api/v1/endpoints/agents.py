@@ -15,6 +15,7 @@ from backend.app.models.entities import (
 )
 from backend.app.schemas.agent import (
     AgentReasoningRequest,
+    AgentPipelineRequest,
     AgentExecutionResponse,
     ThoughtStep,
     Citation,
@@ -24,6 +25,7 @@ from backend.app.api.deps import get_current_user
 from backend.app.api.v1.endpoints.projects import check_user_workspace_access
 from backend.app.services.classifier import scan_and_classify_project
 from backend.app.services.llm_client import execute_agent_reasoning
+from backend.app.services.subagents import run_collaborative_agent_pipeline
 
 router = APIRouter()
 
@@ -202,3 +204,116 @@ def get_agent_history(
             )
         )
     return responses
+
+
+@router.post(
+    "/projects/{project_id}/agents/pipeline",
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_collaborative_agent_pipeline(
+    project_id: str,
+    payload: Optional[AgentPipelineRequest] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    check_user_workspace_access(project.workspace_id, current_user.id, db)
+
+    artifact = (
+        db.query(Artifact)
+        .filter(Artifact.project_id == project_id, Artifact.status == "extracted")
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+
+    files = db.query(ProjectFile).filter(ProjectFile.artifact_id == artifact.id).all() if artifact else []
+    findings = db.query(Finding).filter(Finding.project_id == project_id).all()
+    readiness = (
+        db.query(DataReadinessReport)
+        .filter(DataReadinessReport.project_id == project_id)
+        .order_by(DataReadinessReport.created_at.desc())
+        .first()
+    )
+
+    if artifact and artifact.extracted_path and Path(artifact.extracted_path).exists():
+        _, summary = scan_and_classify_project(artifact.extracted_path)
+        inventory_summary = {
+            "total_files": summary.get("total_files", 0),
+            "total_lines": summary.get("total_lines", 0),
+            "detected_languages": summary.get("detected_languages", []),
+            "detected_frameworks": summary.get("detected_frameworks", []),
+            "detected_infrastructure": summary.get("detected_infrastructure", []) + summary.get("detected_containers", []),
+        }
+    else:
+        inventory_summary = {
+            "total_files": len(files),
+            "total_lines": sum(f.line_count for f in files),
+            "detected_languages": sorted(list(set(f.file_type.capitalize() for f in files if f.category == "code"))),
+            "detected_frameworks": [],
+            "detected_infrastructure": [],
+        }
+
+    findings_list = [
+        {
+            "rule_id": f.rule_id,
+            "category": f.category,
+            "title": f.title,
+            "severity": f.severity,
+            "file_path": f.file_path,
+            "line_start": f.line_start,
+            "line_end": f.line_end,
+            "evidence": f.evidence,
+            "recommended_action": f.recommended_action,
+            "validation": f.validation,
+        }
+        for f in findings
+    ]
+
+    data_readiness_dict = None
+    if readiness:
+        data_readiness_dict = {
+            "overall_score": readiness.overall_score,
+            "structured_score": readiness.structured_score,
+            "unstructured_score": readiness.unstructured_score,
+            "recommendations": json.loads(readiness.recommendations_json),
+            "total_chunks": len(readiness.project.chunks) if readiness.project else 0,
+        }
+
+    custom_instr = payload.custom_instruction if payload else None
+
+    # Run the 4-agent collaborative pipeline
+    pipeline_res = run_collaborative_agent_pipeline(
+        project_name=project.name,
+        inventory_summary=inventory_summary,
+        findings=findings_list,
+        data_readiness=data_readiness_dict,
+        custom_instruction=custom_instr,
+    )
+
+    # Save summary execution record
+    execution = AgentExecution(
+        project_id=project.id,
+        user_id=current_user.id,
+        agent_type="collaborative_pipeline",
+        model_name="multi-agent-orchestrator",
+        status="completed",
+        prompt_context=json.dumps({"custom_instruction": custom_instr}),
+        thought_chain_json=json.dumps([
+            {"step_number": 1, "thought": "Discovery Agent analyzed topology", "action": "Map components", "observation": "Completed"},
+            {"step_number": 2, "thought": "Security Agent assessed AST findings & emitted unified diffs", "action": "Generate patches", "observation": "Completed"},
+            {"step_number": 3, "thought": "Data Readiness Agent planned vector retrieval", "action": "Evaluate chunks", "observation": "Completed"},
+            {"step_number": 4, "thought": "Deployment Strategist generated Cloud Run Terraform & Cloud Build", "action": "Generate IaC", "observation": "Completed"},
+        ]),
+        output_markdown=pipeline_res["executive_summary_markdown"],
+        structured_data_json=json.dumps(pipeline_res["stage_results"]),
+        citations_json=json.dumps([]),
+        execution_time_ms=pipeline_res["total_execution_time_ms"],
+        tokens_used=pipeline_res["total_tokens_used"],
+    )
+    db.add(execution)
+    db.commit()
+
+    return pipeline_res
+

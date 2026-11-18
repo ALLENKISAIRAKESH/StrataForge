@@ -301,6 +301,7 @@ export default function App() {
   const [selectedAgentType, setSelectedAgentType] = useState<'discovery' | 'security' | 'data_readiness' | 'deployment_planner'>('discovery');
   const [customInstruction, setCustomInstruction] = useState('');
   const [isAgentRunning, setIsAgentRunning] = useState(false);
+  const [isPipelineRunning, setIsPipelineRunning] = useState(false);
   const [currentExecution, setCurrentExecution] = useState<AgentExecution | null>(null);
   const [agentHistory, setAgentHistory] = useState<AgentExecution[]>([]);
 
@@ -692,6 +693,40 @@ export default function App() {
     }
   };
 
+  // 4-Agent Collaborative Pipeline Handler
+  const handleRunPipeline = async () => {
+    if (!token || !activeProject) return;
+    setIsPipelineRunning(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/agents/pipeline`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          custom_instruction: customInstruction.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Pipeline execution failed');
+
+      // Refresh history to include pipeline record
+      const histRes = await fetch(`/api/v1/projects/${activeProject.id}/agents/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (histRes.ok) {
+        const histData = await histRes.json();
+        setAgentHistory(histData);
+        if (histData.length > 0) setCurrentExecution(histData[0]);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsPipelineRunning(false);
+    }
+  };
+
   // Status Update Handler
   const handleUpdateFindingStatus = async (findingId: string, newStatus: string) => {
     if (!token) return;
@@ -903,9 +938,9 @@ export default function App() {
           <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1 text-xs">
             <div className="text-slate-400 font-medium flex items-center justify-between">
               <span>Phase 3 Milestone</span>
-              <span className="text-emerald-400 font-semibold">Week 7 Active</span>
+              <span className="text-emerald-400 font-semibold">Week 8 Active</span>
             </div>
-            <p className="text-[11px] text-slate-500">Gemini LLM Foundation & Agent Core</p>
+            <p className="text-[11px] text-slate-500">Specialized Subagents & 4-Agent Pipeline</p>
           </div>
         </aside>
 
@@ -1865,14 +1900,24 @@ export default function App() {
                     <Brain className="w-3.5 h-3.5 text-blue-400" />
                     Model: <span className="font-mono text-slate-300">gemini-1.5-pro</span> (with deterministic grounding fallback)
                   </div>
-                  <button
-                    onClick={handleRunAgentReasoning}
-                    disabled={isAgentRunning || !activeProject}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
-                  >
-                    <Bot className="w-4 h-4" />
-                    {isAgentRunning ? 'Reasoning Across Evidence...' : 'Run Agent Reasoning'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleRunAgentReasoning}
+                      disabled={isAgentRunning || isPipelineRunning || !activeProject}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                    >
+                      <Bot className="w-4 h-4" />
+                      {isAgentRunning ? 'Reasoning...' : 'Run Selected Agent'}
+                    </button>
+                    <button
+                      onClick={handleRunPipeline}
+                      disabled={isAgentRunning || isPipelineRunning || !activeProject}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                    >
+                      <Zap className="w-4 h-4" />
+                      {isPipelineRunning ? 'Orchestrating 4-Agent Pipeline...' : 'Run 4-Agent Pipeline'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1962,6 +2007,34 @@ export default function App() {
                       {currentExecution.output_markdown}
                     </div>
                   </div>
+
+                  {/* Generated Artifacts Drawer (Patches & Terraform) */}
+                  {currentExecution.structured_data && (currentExecution.structured_data.terraform_config || currentExecution.structured_data.unified_diff_patches) && (
+                    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+                      <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-emerald-400" />
+                        Generated Production IaC & Automated Code Patches
+                      </h3>
+                      {currentExecution.structured_data.unified_diff_patches && currentExecution.structured_data.unified_diff_patches.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-semibold text-slate-400 uppercase">Git-Compatible Unified Diff Patches</div>
+                          {currentExecution.structured_data.unified_diff_patches.map((patch: string, pIdx: number) => (
+                            <pre key={pIdx} className="p-3 bg-[#0a0e17] rounded-lg text-[11px] font-mono text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed border border-slate-800">
+                              {patch}
+                            </pre>
+                          ))}
+                        </div>
+                      )}
+                      {currentExecution.structured_data.terraform_config && (
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-semibold text-slate-400 uppercase">Google Cloud Run v2 Terraform Resource</div>
+                          <pre className="p-3 bg-[#0a0e17] rounded-lg text-[11px] font-mono text-blue-300 overflow-x-auto whitespace-pre leading-relaxed border border-slate-800">
+                            {currentExecution.structured_data.terraform_config}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
@@ -2063,9 +2136,16 @@ export default function App() {
                   {
                     phase: 'Phase 3: Week 7',
                     title: 'LLM Foundation Layer & Agent Core Architecture',
-                    status: 'Completed (Tested)',
+                    status: 'Completed',
                     active: true,
                     details: 'Gemini 1.5/2.0 API client, Pydantic structured output validation, deterministic grounding engine, and thought chain telemetry.',
+                  },
+                  {
+                    phase: 'Phase 3: Week 8',
+                    title: 'Specialized Subagents & Collaborative Pipeline',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Domain specialists (Discovery, Security with diff patches, Data Readiness, Deployment Strategist with Terraform/Cloud Build), and 4-agent collaborative synthesis.',
                   },
                 ].map((item, idx) => (
                   <div

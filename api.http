@@ -150,3 +150,13 @@ Content-Type: application/json
 ### 20. List Agent Execution History
 GET {{baseUrl}}/projects/{{projectId}}/agents/history HTTP/1.1
 Authorization: Bearer {{authToken}}
+
+### 21. Trigger 4-Agent Collaborative Pipeline (Discovery -> Security -> Data -> Deployment)
+# @name agentPipeline
+POST {{baseUrl}}/projects/{{projectId}}/agents/pipeline HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "custom_instruction": "Generate production-grade Terraform and automated diff patches"
+}

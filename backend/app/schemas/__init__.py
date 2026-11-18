@@ -30,6 +30,7 @@ from backend.app.schemas.agent import (
     Citation,
     ThoughtStep,
     AgentReasoningRequest,
+    AgentPipelineRequest,
     AgentExecutionResponse,
 )
 
