@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
 
-## Project: Enterprise AI Deployment Engineering Platform (FDE Platform)
+## Project: StrataForge — Autonomous Enterprise Cloud Engineering Platform
 
 ### 1. Overview & Vision
-An AI-assisted engineering platform designed for Google Cloud Forward Deployed Engineers (FDEs) and enterprise engineering teams. It inspects existing technology environments, identifies infrastructure and data-readiness bottlenecks, diagnoses integration blockers, and prepares AI applications for production deployment.
+An autonomous engineering platform designed for enterprise cloud engineering teams and solutions architects. It inspects existing technology environments, identifies infrastructure and data-readiness bottlenecks, diagnoses integration blockers, and prepares applications for production deployment on Google Cloud.
 
 ### 2. Core Problem
 Enterprises attempting to deploy AI and knowledge assistants face severe blockers:

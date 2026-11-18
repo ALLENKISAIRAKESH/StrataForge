@@ -68,5 +68,10 @@ coverage/
 test-results/
 playwright-report/
 
-# Temporary
+# Temporary & Documents
 0.26.0
+*.docx
+*.pdf
+*.xlsx
+*.pptx
+

@@ -1,6 +1,6 @@
-# Enterprise AI Deployment Engineering Platform
-## Google Forward Deployed Engineer (FDE) Intern 2027 Capstone Showcase
-### Google Cloud Consulting (GCC), Bengaluru
+# StrataForge — Enterprise Cloud Modernization Platform
+## Platform Architecture Showcase & Engineering Blueprint
+### Cloud Consulting & Deployment Modernization
 
 ---
 
@@ -29,7 +29,7 @@ The **Enterprise AI Deployment Engineering Platform** is a full-stack, enterpris
           ┌───────────────────────────┴──┐   ┌──────────────┴──────────────┐   ┌──┴────────────────────────┐
           │ Safe Ingestion & Discovery   │   │ Rule Diagnostics & RAG      │   │ Multi-Agent Layer (ADK)   │
           │ • Zip Slip & Bomb Defenses   │   │ • 8 Deterministic Rules     │   │ • Gemini 1.5/2.0 API      │
-          │ • Magic Bytes Verification   │   │ • Relational Constraint SQL │   │ • 4 FDE Subagents         │
+          │ • Magic Bytes Verification   │   │ • Relational Constraint SQL │   │ • 4 Autonomous Subagents  │
           │ • 10-Category File Inventory │   │ • Semantic Window Chunker   │   │ • Shared Blackboard Bus   │
           └──────────────────────────────┘   └─────────────────────────────┘   └───────────────────────────┘
                                       │                     │                     │
@@ -93,7 +93,7 @@ The **Enterprise AI Deployment Engineering Platform** is a full-stack, enterpris
 
 ---
 
-## 5. Google Forward Deployed Engineer (FDE) Competency Mapping
+## 5. Cloud Modernization & Deployment Competency Mapping
 
 * **Client Empathy & Enterprise Problem Solving**: Translates messy enterprise codebases into clear, prioritized, executive-ready remediation matrices.
 * **Google Cloud Technical Mastery**: Deep hands-on engineering across Google Cloud Run v2, Cloud SQL, Secret Manager, Serverless VPC Access, Artifact Registry, Cloud Build, and Cloud Logging.
