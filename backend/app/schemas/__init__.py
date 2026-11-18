@@ -37,6 +37,13 @@ from backend.app.schemas.agent import (
     AgentBlackboardResponse,
 )
 
+from backend.app.schemas.workbench import (
+    AgentFeedbackCreate,
+    AgentFeedbackResponse,
+    ApplyPatchRequest,
+    ApplyPatchResponse,
+)
+
 __all__ = [
     "UserCreate",
     "UserLogin",
@@ -68,4 +75,8 @@ __all__ = [
     "AgentMemoryEntry",
     "AgentMemoryPublishRequest",
     "AgentBlackboardResponse",
+    "AgentFeedbackCreate",
+    "AgentFeedbackResponse",
+    "ApplyPatchRequest",
+    "ApplyPatchResponse",
 ]

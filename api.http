@@ -184,3 +184,31 @@ Content-Type: application/json
 ### 24. Clear Agent Blackboard Bus
 DELETE {{baseUrl}}/projects/{{projectId}}/agents/memory HTTP/1.1
 Authorization: Bearer {{authToken}}
+
+### 25. Submit Human-in-the-Loop Feedback (Approve / Reject / Modify)
+# @name submitWorkbenchFeedback
+POST {{baseUrl}}/projects/{{projectId}}/workbench/feedback HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "target_type": "patch",
+  "action": "approve",
+  "original_content": "--- a/requirements.txt\n+++ b/requirements.txt\n@@ -1,2 +1,2 @@\n-fastapi\n+fastapi==0.115.0\n",
+  "reviewer_comments": "Approved after staging environment vulnerability scan."
+}
+
+### 26. List Human-in-the-Loop Audit & Feedback History
+GET {{baseUrl}}/projects/{{projectId}}/workbench/feedback HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 27. Apply Verified Remediation Patch to Project Code
+# @name applyRemediationPatch
+POST {{baseUrl}}/projects/{{projectId}}/workbench/apply-patch HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "patch_content": "--- a/requirements.txt\n+++ b/requirements.txt\n@@ -1,4 +1,4 @@\n-fastapi\n-uvicorn\n+fastapi==0.115.0\n+uvicorn==0.30.6\n",
+  "reviewer_comments": "Applying production dependency pins via Human Workbench"
+}

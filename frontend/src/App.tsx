@@ -36,7 +36,10 @@ import {
   Quote,
   Zap,
   Share2,
-  Trash2
+  Trash2,
+  GitPullRequest,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 
 interface BackendHealth {
@@ -266,6 +269,25 @@ interface AgentBlackboard {
   total_keys: number;
 }
 
+interface AgentFeedbackItem {
+  id: string;
+  project_id: string;
+  user_id?: string;
+  finding_id?: string;
+  execution_id?: string;
+  target_type: string;
+  action: 'approve' | 'reject' | 'modify';
+  status: 'pending' | 'reviewed' | 'applied' | 'rejected';
+  original_content: string;
+  modified_content?: string;
+  reviewer_comments?: string;
+  applied_patch_summary?: string;
+  applied_at?: string;
+  created_at: string;
+  updated_at: string;
+  reviewer_name?: string;
+}
+
 export default function App() {
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -329,6 +351,12 @@ export default function App() {
   const [newMemoryKey, setNewMemoryKey] = useState('');
   const [newMemoryValue, setNewMemoryValue] = useState('');
   const [newMemoryAgent, setNewMemoryAgent] = useState('human_supervisor');
+
+  // Human-in-the-Loop Workbench & Feedback State
+  const [feedbackList, setFeedbackList] = useState<AgentFeedbackItem[]>([]);
+  const [activeReviewPatch, setActiveReviewPatch] = useState<string | null>(null);
+  const [reviewComments, setReviewComments] = useState('');
+  const [isApplyingPatch, setIsApplyingPatch] = useState(false);
 
   // 1. Health check
   useEffect(() => {
@@ -477,6 +505,13 @@ export default function App() {
       .then((res) => (res.ok ? res.json() : null))
       .then((bb: AgentBlackboard | null) => setBlackboardData(bb))
       .catch(() => setBlackboardData(null));
+
+    fetch(`/api/v1/projects/${activeProject.id}/workbench/feedback`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((fList: AgentFeedbackItem[]) => setFeedbackList(fList))
+      .catch(() => setFeedbackList([]));
   }, [token, activeProject]);
 
   // Authentication Handlers
@@ -818,6 +853,94 @@ export default function App() {
       });
       if (!res.ok) throw new Error('Failed to clear memory');
       await fetchBlackboard();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Human-in-the-Loop Workbench Handlers
+  const fetchFeedback = async () => {
+    if (!token || !activeProject) return;
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/workbench/feedback`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setFeedbackList(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch feedback history', err);
+    }
+  };
+
+  const handleApplyPatch = async (patchContent: string, findingId?: string) => {
+    if (!token || !activeProject) return;
+    setIsApplyingPatch(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/workbench/apply-patch`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          patch_content: patchContent,
+          finding_id: findingId || undefined,
+          reviewer_comments: reviewComments.trim() || 'Approved and applied via Human-in-the-Loop Workbench',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to apply patch');
+
+      // Update local findings if finding was resolved
+      if (data.finding_id && data.finding_status) {
+        setFindings(
+          findings.map((f) => (f.id === data.finding_id ? { ...f, status: data.finding_status as any } : f))
+        );
+      }
+
+      await fetchFeedback();
+      await fetchBlackboard();
+      setActiveReviewPatch(null);
+      setReviewComments('');
+      alert(data.message);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsApplyingPatch(false);
+    }
+  };
+
+  const handleSubmitReview = async (
+    action: 'approve' | 'reject' | 'modify',
+    content: string,
+    targetType: string = 'patch',
+    findingId?: string
+  ) => {
+    if (!token || !activeProject) return;
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/workbench/feedback`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          target_type: targetType,
+          original_content: content,
+          finding_id: findingId || undefined,
+          reviewer_comments: reviewComments.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to submit review');
+
+      await fetchFeedback();
+      await fetchBlackboard();
+      setActiveReviewPatch(null);
+      setReviewComments('');
+      alert(`Decision recorded: ${action.toUpperCase()}`);
     } catch (err: any) {
       alert(err.message);
     }
@@ -1891,6 +2014,64 @@ export default function App() {
                       </div>
                     )}
                   </div>
+
+                  {/* Human-in-the-Loop Audit & Feedback History */}
+                  <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <GitPullRequest className="w-4 h-4 text-emerald-400" />
+                        Human-in-the-Loop Audit & Review Trail ({feedbackList.length} decisions)
+                      </h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+                        Enterprise Sign-off Gate
+                      </span>
+                    </div>
+
+                    {feedbackList.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                        No engineer sign-offs or reviews recorded yet. Run the agent pipeline to generate code patches, then approve and apply them to record decisions.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {feedbackList.map((item) => (
+                          <div key={item.id} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800/80 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                                    item.status === 'applied'
+                                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                      : item.action === 'approve'
+                                      ? 'bg-blue-950 text-blue-300 border border-blue-800'
+                                      : 'bg-rose-950 text-rose-300 border border-rose-800'
+                                  }`}
+                                >
+                                  {item.status === 'applied' ? 'Applied to Code' : item.action}
+                                </span>
+                                <span className="font-semibold text-white uppercase text-[11px] font-mono">
+                                  {item.target_type}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">
+                                Reviewed by <span className="text-slate-200">{item.reviewer_name}</span> &bull; {new Date(item.created_at).toLocaleString()}
+                              </div>
+                            </div>
+                            {item.reviewer_comments && (
+                              <p className="text-slate-300 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80 italic">
+                                &ldquo;{item.reviewer_comments}&rdquo;
+                              </p>
+                            )}
+                            {item.applied_patch_summary && (
+                              <div className="text-[11px] text-emerald-400 font-mono flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5" />
+                                {item.applied_patch_summary}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -2242,18 +2423,98 @@ export default function App() {
                         Generated Production IaC & Automated Code Patches
                       </h3>
                       {currentExecution.structured_data.unified_diff_patches && currentExecution.structured_data.unified_diff_patches.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="text-[11px] font-semibold text-slate-400 uppercase">Git-Compatible Unified Diff Patches</div>
-                          {currentExecution.structured_data.unified_diff_patches.map((patch: string, pIdx: number) => (
-                            <pre key={pIdx} className="p-3 bg-[#0a0e17] rounded-lg text-[11px] font-mono text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed border border-slate-800">
-                              {patch}
-                            </pre>
-                          ))}
+                        <div className="space-y-3">
+                          <div className="text-[11px] font-semibold text-slate-400 uppercase">Git-Compatible Unified Diff Patches (Human Review Gate)</div>
+                          {currentExecution.structured_data.unified_diff_patches.map((patch: string, pIdx: number) => {
+                            const isApplied = feedbackList.some((f) => f.status === 'applied' && f.original_content === patch);
+                            const isRejected = feedbackList.some((f) => f.action === 'reject' && f.original_content === patch);
+                            return (
+                              <div key={pIdx} className="space-y-2 p-3 bg-[#0a0e17] rounded-xl border border-slate-800">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-mono text-slate-400">Patch #{pIdx + 1}</span>
+                                  <div className="flex items-center gap-2">
+                                    {isApplied ? (
+                                      <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1 font-mono">
+                                        <Check className="w-3 h-3" /> Applied to Codebase
+                                      </span>
+                                    ) : isRejected ? (
+                                      <span className="text-[10px] px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 flex items-center gap-1 font-mono">
+                                        <XCircle className="w-3 h-3" /> Rejected by Reviewer
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => setActiveReviewPatch(activeReviewPatch === patch ? null : patch)}
+                                          className="text-[11px] text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-900 border border-slate-800"
+                                        >
+                                          {activeReviewPatch === patch ? 'Cancel Note' : '+ Note'}
+                                        </button>
+                                        <button
+                                          onClick={() => handleApplyPatch(patch)}
+                                          disabled={isApplyingPatch}
+                                          className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
+                                        >
+                                          <Check className="w-3 h-3" />
+                                          {isApplyingPatch ? 'Applying...' : 'Approve & Apply'}
+                                        </button>
+                                        <button
+                                          onClick={() => handleSubmitReview('reject', patch, 'patch')}
+                                          className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 text-slate-400 rounded text-xs font-medium transition-colors"
+                                        >
+                                          <ThumbsDown className="w-3 h-3" />
+                                          Reject
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                {activeReviewPatch === patch && (
+                                  <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800 space-y-1.5">
+                                    <label className="text-[11px] text-slate-300 block">Reviewer Note / Decision Rationale</label>
+                                    <input
+                                      type="text"
+                                      value={reviewComments}
+                                      onChange={(e) => setReviewComments(e.target.value)}
+                                      placeholder="e.g. Approved dependency pin for production stability..."
+                                      className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                                    />
+                                  </div>
+                                )}
+                                <pre className="p-2.5 bg-slate-950 rounded text-[10px] font-mono text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed border border-slate-900">
+                                  {patch}
+                                </pre>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {currentExecution.structured_data.terraform_config && (
                         <div className="space-y-2">
-                          <div className="text-[11px] font-semibold text-slate-400 uppercase">Google Cloud Run v2 Terraform Resource</div>
+                          <div className="flex items-center justify-between">
+                            <div className="text-[11px] font-semibold text-slate-400 uppercase">Google Cloud Run v2 Terraform Resource</div>
+                            <div className="flex items-center gap-2">
+                              {feedbackList.some((f) => f.target_type === 'terraform' && f.action === 'approve') ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-1 font-mono">
+                                  <Check className="w-3 h-3" /> IaC Approved
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleSubmitReview('approve', currentExecution.structured_data.terraform_config, 'terraform')}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium transition-colors"
+                                  >
+                                    <ThumbsUp className="w-3 h-3" /> Approve IaC
+                                  </button>
+                                  <button
+                                    onClick={() => handleSubmitReview('reject', currentExecution.structured_data.terraform_config, 'terraform')}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 text-slate-400 rounded text-xs font-medium transition-colors"
+                                  >
+                                    <ThumbsDown className="w-3 h-3" /> Reject
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
                           <pre className="p-3 bg-[#0a0e17] rounded-lg text-[11px] font-mono text-blue-300 overflow-x-auto whitespace-pre leading-relaxed border border-slate-800">
                             {currentExecution.structured_data.terraform_config}
                           </pre>
@@ -2379,6 +2640,13 @@ export default function App() {
                     status: 'Completed (Tested)',
                     active: true,
                     details: 'Persistent shared blackboard memory bus allowing subagents to share structured architectural facts, security risks, RAG strategies, and deployment constraints with idempotency and human injection.',
+                  },
+                  {
+                    phase: 'Phase 3: Week 10',
+                    title: 'Human-in-the-Loop Workbench & Feedback Loop',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Enterprise engineer review workbench for automated diff patches, approval gates, virtual patch application with file safety, and audit feedback trail.',
                   },
                 ].map((item, idx) => (
                   <div

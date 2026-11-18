@@ -10,6 +10,7 @@ from backend.app.models.entities import (
     DataReadinessReport,
     AgentExecution,
     AgentMemory,
+    AgentFeedback,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "DataReadinessReport",
     "AgentExecution",
     "AgentMemory",
+    "AgentFeedback",
 ]

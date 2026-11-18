@@ -96,6 +96,7 @@ class Project(Base):
     readiness_reports = relationship("DataReadinessReport", back_populates="project", cascade="all, delete-orphan")
     agent_executions = relationship("AgentExecution", back_populates="project", cascade="all, delete-orphan")
     memories = relationship("AgentMemory", back_populates="project", cascade="all, delete-orphan")
+    feedback = relationship("AgentFeedback", back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_projects_workspace_name", "workspace_id", "name"),
@@ -260,5 +261,35 @@ class AgentMemory(Base):
     __table_args__ = (
         Index("ix_agent_memory_project_key", "project_id", "key", unique=True),
     )
+
+
+class AgentFeedback(Base):
+    __tablename__ = "agent_feedback"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    finding_id = Column(String(36), ForeignKey("findings.id", ondelete="SET NULL"), nullable=True, index=True)
+    execution_id = Column(String(36), ForeignKey("agent_executions.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    target_type = Column(String(50), nullable=False)  # 'patch', 'terraform', 'finding_remediation', 'general'
+    action = Column(String(50), nullable=False)       # 'approve', 'reject', 'modify'
+    status = Column(String(50), default="reviewed", nullable=False)  # 'pending', 'reviewed', 'applied', 'rejected'
+
+    original_content = Column(Text, nullable=False)   # The diff patch or suggested code
+    modified_content = Column(Text, nullable=True)   # Modified patch / code if human made edits
+    reviewer_comments = Column(Text, nullable=True)
+    applied_patch_summary = Column(Text, nullable=True)
+
+    applied_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="feedback")
+    user = relationship("User")
+    finding = relationship("Finding")
+    execution = relationship("AgentExecution")
+
 
 
