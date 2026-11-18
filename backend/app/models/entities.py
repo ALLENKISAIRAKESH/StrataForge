@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Text,
     Integer,
+    Float,
     UniqueConstraint,
     Index,
 )
@@ -90,6 +91,7 @@ class Project(Base):
     workspace = relationship("Workspace", back_populates="projects")
     artifacts = relationship("Artifact", back_populates="project", cascade="all, delete-orphan")
     files = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
+    findings = relationship("Finding", back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_projects_workspace_name", "workspace_id", "name"),
@@ -113,6 +115,7 @@ class Artifact(Base):
     # Relationships
     project = relationship("Project", back_populates="artifacts")
     files = relationship("ProjectFile", back_populates="artifact", cascade="all, delete-orphan")
+    findings = relationship("Finding", back_populates="artifact", cascade="all, delete-orphan")
 
 
 class ProjectFile(Base):
@@ -123,8 +126,8 @@ class ProjectFile(Base):
     artifact_id = Column(String(36), ForeignKey("artifacts.id", ondelete="CASCADE"), nullable=False, index=True)
     relative_path = Column(String(500), nullable=False)
     filename = Column(String(255), nullable=False)
-    category = Column(String(50), nullable=False)     # container, orchestration, infrastructure, api_spec, database, dependency, source_code, documentation, configuration, unknown
-    file_type = Column(String(50), nullable=False)    # dockerfile, compose, terraform, openapi, sql, python, typescript, javascript, etc.
+    category = Column(String(50), nullable=False)
+    file_type = Column(String(50), nullable=False)
     size_bytes = Column(Integer, default=0, nullable=False)
     line_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -136,4 +139,34 @@ class ProjectFile(Base):
     __table_args__ = (
         Index("ix_project_files_proj_cat", "project_id", "category"),
         Index("ix_project_files_proj_type", "project_id", "file_type"),
+    )
+
+
+class Finding(Base):
+    __tablename__ = "findings"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    artifact_id = Column(String(36), ForeignKey("artifacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_id = Column(String(50), nullable=False, index=True)       # e.g. DOCKER_001, DEP_001
+    category = Column(String(50), nullable=False, index=True)      # container, security, dependency, database, api_spec
+    title = Column(String(255), nullable=False)
+    severity = Column(String(20), nullable=False, index=True)      # critical, high, medium, low, info
+    confidence = Column(Float, default=1.0, nullable=False)
+    file_path = Column(String(500), nullable=False)
+    line_start = Column(Integer, nullable=False)
+    line_end = Column(Integer, nullable=False)
+    evidence = Column(Text, nullable=False)
+    recommended_action = Column(Text, nullable=False)
+    validation = Column(Text, nullable=False)
+    status = Column(String(30), default="open", nullable=False)    # open, acknowledged, resolved, false_positive
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="findings")
+    artifact = relationship("Artifact", back_populates="findings")
+
+    __table_args__ = (
+        Index("ix_findings_proj_sev", "project_id", "severity"),
+        Index("ix_findings_proj_status", "project_id", "status"),
     )

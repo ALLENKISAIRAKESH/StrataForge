@@ -15,6 +15,13 @@ from backend.app.schemas.artifact import (
     ProjectFileResponse,
     EnvironmentInventory,
 )
+from backend.app.schemas.finding import (
+    FindingBase,
+    FindingCreate,
+    FindingStatusUpdate,
+    FindingResponse,
+    DiagnosticsSummary,
+)
 
 __all__ = [
     "UserCreate",
@@ -32,4 +39,9 @@ __all__ = [
     "ArtifactResponse",
     "ProjectFileResponse",
     "EnvironmentInventory",
+    "FindingBase",
+    "FindingCreate",
+    "FindingStatusUpdate",
+    "FindingResponse",
+    "DiagnosticsSummary",
 ]

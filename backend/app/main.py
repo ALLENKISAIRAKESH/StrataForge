@@ -10,6 +10,7 @@ from backend.app.api.v1.endpoints.auth import router as auth_router
 from backend.app.api.v1.endpoints.workspaces import router as workspaces_router
 from backend.app.api.v1.endpoints.projects import router as projects_router
 from backend.app.api.v1.endpoints.artifacts import router as artifacts_router
+from backend.app.api.v1.endpoints.diagnostics import router as diagnostics_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,6 +54,7 @@ app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Aut
 app.include_router(workspaces_router, prefix=f"{settings.API_V1_STR}/workspaces", tags=["Workspaces"])
 app.include_router(projects_router, prefix=f"{settings.API_V1_STR}/projects", tags=["Projects"])
 app.include_router(artifacts_router, prefix=settings.API_V1_STR, tags=["Artifacts & Discovery"])
+app.include_router(diagnostics_router, prefix=settings.API_V1_STR, tags=["Static Diagnostics"])
 
 if __name__ == "__main__":
     import uvicorn

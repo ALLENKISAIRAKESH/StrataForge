@@ -16,11 +16,11 @@ import {
   KeyRound,
   ExternalLink,
   UploadCloud,
-  FileCode,
-  Box,
-  Cloud,
-  Code2,
-  Check
+  Check,
+  Play,
+  Filter,
+  CheckSquare,
+  AlertCircle
 } from 'lucide-react';
 
 interface BackendHealth {
@@ -81,6 +81,23 @@ interface EnvironmentInventory {
   files: ProjectFile[];
 }
 
+interface Finding {
+  id: string;
+  rule_id: string;
+  category: string;
+  title: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  confidence: number;
+  file_path: string;
+  line_start: number;
+  line_end: number;
+  evidence: string;
+  recommended_action: string;
+  validation: string;
+  status: 'open' | 'acknowledged' | 'resolved' | 'false_positive';
+  created_at: string;
+}
+
 export default function App() {
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,6 +133,11 @@ export default function App() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Diagnostics State
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
 
   // 1. Health check
   useEffect(() => {
@@ -180,6 +202,7 @@ export default function App() {
       setProjects([]);
       setActiveProject(null);
       setInventory(null);
+      setFindings([]);
       return;
     }
     fetch(`/api/v1/projects/?workspace_id=${activeWorkspace.id}`, {
@@ -195,10 +218,11 @@ export default function App() {
       .catch(console.error);
   }, [token, activeWorkspace]);
 
-  // 5. Fetch inventory for active project
+  // 5. Fetch inventory & findings for active project
   useEffect(() => {
     if (!token || !activeProject) {
       setInventory(null);
+      setFindings([]);
       return;
     }
     fetch(`/api/v1/projects/${activeProject.id}/inventory`, {
@@ -207,6 +231,13 @@ export default function App() {
       .then((res) => (res.ok ? res.json() : null))
       .then((inv: EnvironmentInventory | null) => setInventory(inv))
       .catch(() => setInventory(null));
+
+    fetch(`/api/v1/projects/${activeProject.id}/findings`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((fList: Finding[]) => setFindings(fList))
+      .catch(() => setFindings([]));
   }, [token, activeProject]);
 
   // Authentication Handlers
@@ -246,6 +277,7 @@ export default function App() {
     setProjects([]);
     setActiveProject(null);
     setInventory(null);
+    setFindings([]);
   };
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
@@ -332,6 +364,58 @@ export default function App() {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // Run Diagnostics Handler
+  const handleRunDiagnostics = async () => {
+    if (!token || !activeProject) return;
+    setIsDiagnosing(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/diagnose`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Diagnostics failed');
+      setFindings(data.findings);
+      setActiveProject({ ...activeProject, status: 'analyzed' });
+      setActiveTab('diagnostics');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
+
+  // Status Update Handler
+  const handleUpdateFindingStatus = async (findingId: string, newStatus: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/v1/findings/${findingId}/status`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Status update failed');
+      setFindings(findings.map((f) => (f.id === findingId ? { ...f, status: newStatus as any } : f)));
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const filteredFindings = findings.filter((f) => {
+    if (severityFilter === 'all') return true;
+    return f.severity === severityFilter;
+  });
+
+  const severityCounts = {
+    critical: findings.filter((f) => f.severity === 'critical').length,
+    high: findings.filter((f) => f.severity === 'high').length,
+    medium: findings.filter((f) => f.severity === 'medium').length,
+    low: findings.filter((f) => f.severity === 'low').length,
   };
 
   return (
@@ -460,11 +544,11 @@ export default function App() {
             })}
 
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 pt-4 py-2">
-              Discovery & Diagnostics
+              Diagnostics & Architecture
             </div>
             {[
               { id: 'discovery', label: 'Environment Discovery', icon: Terminal },
-              { id: 'diagnostics', label: 'Static Diagnostics', icon: Activity },
+              { id: 'diagnostics', label: 'Static Diagnostics', icon: Activity, count: findings.length },
               { id: 'agents', label: 'Multi-Agent Reasoning', icon: Cpu },
               { id: 'roadmap', label: '16-Week Roadmap', icon: FileCheck2 },
             ].map((item) => {
@@ -474,14 +558,21 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id as any)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                     isActive
                       ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  {item.label}
+                  <div className="flex items-center gap-2.5">
+                    <Icon className="w-4 h-4" />
+                    {item.label}
+                  </div>
+                  {item.count !== undefined && item.count > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800 font-mono">
+                      {item.count}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -490,9 +581,9 @@ export default function App() {
           <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1 text-xs">
             <div className="text-slate-400 font-medium flex items-center justify-between">
               <span>Phase 2 Milestone</span>
-              <span className="text-emerald-400 font-semibold">Week 3 Active</span>
+              <span className="text-emerald-400 font-semibold">Week 4 Active</span>
             </div>
-            <p className="text-[11px] text-slate-500">Safe Ingestion, Extraction & File Classification</p>
+            <p className="text-[11px] text-slate-500">Deterministic Static Diagnostics & Evidence</p>
           </div>
         </aside>
 
@@ -508,30 +599,31 @@ export default function App() {
                       Enterprise AI Deployment Engineering Platform
                     </h2>
                     <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                      Safe archive ingestion, deterministic static diagnostics, and multi-agent reasoning for Google Cloud Run production deployments.
+                      Deterministic static diagnostics and evidence extraction for Google Cloud Run production readiness.
                     </p>
                   </div>
-                  {currentUser && (
+                  {currentUser && inventory && (
                     <button
-                      onClick={() => setShowNewProjectModal(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all"
+                      onClick={handleRunDiagnostics}
+                      disabled={isDiagnosing}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
                     >
-                      <Plus className="w-4 h-4" /> New Project
+                      <Play className="w-4 h-4" /> {isDiagnosing ? 'Running Rules...' : 'Run Diagnostics'}
                     </button>
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
                   <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
-                    Safe Ingestion (Zip Slip Defenses)
+                    Deterministic AST & Regex Rules
                   </span>
                   <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
-                    Deterministic File Classifier
+                    Exact File Line Evidence Citations
                   </span>
                   <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
                     FastAPI + SQLAlchemy
                   </span>
                   <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
-                    Docker & Terraform Discovery
+                    Zero Code Execution Sandbox
                   </span>
                 </div>
               </div>
@@ -539,7 +631,7 @@ export default function App() {
               {/* Status Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Active Target Project</div>
+                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Target Project</div>
                   <div className="text-xl font-bold text-white truncate">
                     {activeProject ? activeProject.name : 'None Selected'}
                   </div>
@@ -554,17 +646,27 @@ export default function App() {
                     {inventory ? `${inventory.total_files} files` : '0 files'}
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
-                    {inventory ? `${inventory.total_lines} lines of code classified` : 'Awaiting archive upload'}
+                    {inventory ? `${inventory.total_lines} lines of code` : 'Awaiting archive upload'}
                   </div>
                 </div>
 
                 <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Security Defense</div>
-                  <div className="text-xl font-bold text-emerald-400 flex items-center gap-1.5 text-base">
-                    <CheckCircle2 className="w-5 h-5" /> Enforced
+                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Diagnostic Findings</div>
+                  <div className="text-xl font-bold text-amber-400 flex items-center gap-1.5 text-base">
+                    {findings.length > 0 ? (
+                      <>
+                        <AlertCircle className="w-5 h-5 text-amber-400" />
+                        {findings.length} Defects Found
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        Clean / Not Run
+                      </>
+                    )}
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
-                    Zip Slip, Symlinks & Bomb limits active
+                    {findings.length > 0 ? `${severityCounts.high} High, ${severityCounts.medium} Medium` : 'Evidence-backed checks'}
                   </div>
                 </div>
               </div>
@@ -615,117 +717,154 @@ export default function App() {
                   {isUploading ? 'Processing...' : activeProject ? `Upload to ${activeProject.name}` : 'Select Archive (.zip)'}
                 </button>
               </div>
+            </div>
+          )}
 
-              {/* Real Inventory Display */}
-              {inventory && (
-                <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                      <Terminal className="w-4 h-4 text-blue-400" />
-                      Discovered Technology Stack
-                    </h3>
-                    <span className="text-xs text-slate-400">
-                      {inventory.total_files} Files &bull; {inventory.total_lines} Lines
-                    </span>
-                  </div>
+          {/* TAB 2: DIAGNOSTICS */}
+          {activeTab === 'diagnostics' && (
+            <div className="max-w-5xl mx-auto space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-blue-400" />
+                    Static Diagnostics & Evidence Engine
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Deterministic inspection rules with zero false factual claims. Every finding is backed by exact file line references.
+                  </p>
+                </div>
+                {currentUser && inventory && (
+                  <button
+                    onClick={handleRunDiagnostics}
+                    disabled={isDiagnosing}
+                    className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                  >
+                    <Play className="w-3.5 h-3.5" /> {isDiagnosing ? 'Running Rules...' : 'Run Diagnostics'}
+                  </button>
+                )}
+              </div>
 
-                  {/* Discovered Badges */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
-                        <Code2 className="w-3.5 h-3.5 text-blue-400" /> Languages
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {inventory.detected_languages.map((l) => (
-                          <span key={l} className="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
-                            {l}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+              {/* Severity Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <div className="text-[11px] font-semibold text-rose-400 uppercase">Critical</div>
+                  <div className="text-xl font-bold text-white mt-1">{severityCounts.critical}</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <div className="text-[11px] font-semibold text-amber-400 uppercase">High Severity</div>
+                  <div className="text-xl font-bold text-white mt-1">{severityCounts.high}</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <div className="text-[11px] font-semibold text-yellow-400 uppercase">Medium Severity</div>
+                  <div className="text-xl font-bold text-white mt-1">{severityCounts.medium}</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <div className="text-[11px] font-semibold text-blue-400 uppercase">Low / Info</div>
+                  <div className="text-xl font-bold text-white mt-1">{severityCounts.low}</div>
+                </div>
+              </div>
 
-                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
-                        <Box className="w-3.5 h-3.5 text-purple-400" /> Frameworks
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {inventory.detected_frameworks.length > 0 ? (
-                          inventory.detected_frameworks.map((f) => (
-                            <span key={f} className="text-[10px] px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">
-                              {f}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[10px] text-slate-500">None detected</span>
-                        )}
-                      </div>
-                    </div>
+              {/* Severity Filter Controls */}
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <span className="text-xs text-slate-400 mr-2">Filter:</span>
+                {['all', 'high', 'medium', 'low'].map((sev) => (
+                  <button
+                    key={sev}
+                    onClick={() => setSeverityFilter(sev)}
+                    className={`text-xs px-2.5 py-1 rounded-md font-medium uppercase text-[10px] transition-colors ${
+                      severityFilter === sev
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-900 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {sev}
+                  </button>
+                ))}
+              </div>
 
-                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
-                        <Box className="w-3.5 h-3.5 text-amber-400" /> Containers
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {inventory.detected_containers.length > 0 ? (
-                          inventory.detected_containers.map((c) => (
-                            <span key={c} className="text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                              {c}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[10px] text-slate-500">None</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
-                        <Cloud className="w-3.5 h-3.5 text-emerald-400" /> Infrastructure
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {inventory.detected_infrastructure.length > 0 ? (
-                          inventory.detected_infrastructure.map((i) => (
-                            <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                              {i}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[10px] text-slate-500">None</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Classified File Explorer */}
-                  <div className="mt-4">
-                    <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                      Classified Project Files
-                    </h4>
-                    <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 divide-y divide-slate-800/60 text-xs">
-                      {inventory.files.map((file) => (
-                        <div key={file.id} className="p-2.5 px-4 flex items-center justify-between hover:bg-slate-900/50">
+              {/* Findings List */}
+              {findings.length === 0 ? (
+                <div className="p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
+                  <CheckSquare className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                  <h3 className="text-sm font-semibold text-white">No Diagnostic Findings</h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    {inventory
+                      ? 'Click "Run Diagnostics" to inspect the uploaded codebase.'
+                      : 'Upload a project archive (.zip) first to begin analysis.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredFindings.map((finding) => (
+                    <div
+                      key={finding.id}
+                      className="p-5 rounded-2xl border border-slate-800 bg-[#0d1322] space-y-3"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <FileCode className="w-4 h-4 text-slate-400" />
-                            <span className="font-mono text-slate-200">{file.relative_path}</span>
+                            <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                              {finding.rule_id}
+                            </span>
+                            <span
+                              className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${
+                                finding.severity === 'high'
+                                  ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                                  : finding.severity === 'medium'
+                                  ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                  : 'bg-blue-950 text-blue-300 border border-blue-800'
+                              }`}
+                            >
+                              {finding.severity}
+                            </span>
+                            <span className="text-xs font-semibold text-white">{finding.title}</span>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
-                              {file.category}
-                            </span>
-                            <span className="text-[11px] text-slate-500">
-                              {file.line_count} lines
-                            </span>
+                          <div className="text-[11px] text-slate-400 font-mono">
+                            File: <span className="text-blue-300">{finding.file_path}</span> (Lines {finding.line_start}-{finding.line_end})
                           </div>
                         </div>
-                      ))}
+
+                        {/* Status Select */}
+                        <select
+                          value={finding.status}
+                          onChange={(e) => handleUpdateFindingStatus(finding.id, e.target.value)}
+                          className="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none"
+                        >
+                          <option value="open">Open</option>
+                          <option value="acknowledged">Acknowledged</option>
+                          <option value="resolved">Resolved</option>
+                          <option value="false_positive">False Positive</option>
+                        </select>
+                      </div>
+
+                      {/* Evidence citation block */}
+                      <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 font-mono text-xs text-slate-300">
+                        <div className="text-[10px] font-sans font-semibold text-slate-500 uppercase mb-1">
+                          Exact Evidence Citation:
+                        </div>
+                        {finding.evidence}
+                      </div>
+
+                      {/* Recommendation */}
+                      <div className="text-xs text-slate-300 space-y-1">
+                        <div>
+                          <span className="text-slate-400 font-medium">Recommended Action: </span>
+                          {finding.recommended_action}
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-medium">Validation: </span>
+                          <span className="font-mono text-slate-400 text-[11px]">{finding.validation}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 2: DISCOVERY */}
+          {/* TAB 3: DISCOVERY */}
           {activeTab === 'discovery' && (
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
@@ -758,7 +897,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: WORKSPACES */}
+          {/* TAB 4: WORKSPACES */}
           {activeTab === 'workspaces' && (
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
@@ -812,7 +951,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: PROJECTS */}
+          {/* TAB 5: PROJECTS */}
           {activeTab === 'projects' && (
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
@@ -870,7 +1009,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: ROADMAP */}
+          {/* TAB 6: ROADMAP */}
           {activeTab === 'roadmap' && (
             <div className="max-w-4xl mx-auto space-y-4">
               <h2 className="text-xl font-bold text-white">16-Week Google FDE Execution Plan</h2>
@@ -893,16 +1032,23 @@ export default function App() {
                   {
                     phase: 'Phase 2: Week 3',
                     title: 'Secure File Ingestion & File Classification',
-                    status: 'Completed (Tested)',
+                    status: 'Completed',
                     active: true,
-                    details: 'Zip Slip & bomb defenses, deterministic file classifier, ProjectFile metadata inventory, 19 automated tests passing.',
+                    details: 'Zip Slip & bomb defenses, deterministic file classifier, ProjectFile metadata inventory.',
                   },
                   {
                     phase: 'Phase 2: Week 4',
                     title: 'Static Diagnostic Rule Engine & Evidence Collection',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Deterministic inspection rules for Dockerfiles, OpenAPI, SQL schemas, and unpinned dependencies with exact line citations.',
+                  },
+                  {
+                    phase: 'Phase 2: Week 5',
+                    title: 'Data Readiness & RAG Suitability Engine',
                     status: 'Next Up',
                     active: false,
-                    details: 'Deterministic inspection rules for Dockerfiles, OpenAPI, SQL schemas, and unpinned dependencies with exact line citations.',
+                    details: 'Chunking quality, metadata extraction, semantic segmentation, and RAG retrieval preparation.',
                   },
                 ].map((item, idx) => (
                   <div
@@ -929,12 +1075,12 @@ export default function App() {
             </div>
           )}
 
-          {activeTab !== 'overview' && activeTab !== 'workspaces' && activeTab !== 'projects' && activeTab !== 'discovery' && activeTab !== 'roadmap' && (
+          {activeTab === 'agents' && (
             <div className="max-w-4xl mx-auto p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
-              <Activity className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-white capitalize">{activeTab} Engine</h3>
+              <Cpu className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white">Multi-Agent Reasoning Engine</h3>
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Scheduled for Week 4 &bull; Deterministic static inspection & multi-agent reasoning.
+                Scheduled for Phase 3 &bull; Gemini + Google ADK agent orchestration over deterministic findings.
               </p>
             </div>
           )}

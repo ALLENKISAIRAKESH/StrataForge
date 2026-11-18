@@ -1,5 +1,5 @@
 ### ==============================================================
-### FDE Platform - REST Client API Tests (Week 1 & 2)
+### FDE Platform - REST Client API Tests (Week 1, 2, 3, 4)
 ### ==============================================================
 
 @baseUrl = http://localhost:8000/api/v1
@@ -16,9 +16,9 @@ POST {{baseUrl}}/auth/register HTTP/1.1
 Content-Type: application/json
 
 {
-  "email": "engineer@acme.com",
+  "email": "lead.fde@googlecloud.com",
   "password": "Password123!",
-  "full_name": "Senior Forward Deployed Engineer"
+  "full_name": "Lead Forward Deployed Engineer"
 }
 
 ### 3. User Login
@@ -27,7 +27,7 @@ POST {{baseUrl}}/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-  "email": "engineer@acme.com",
+  "email": "lead.fde@googlecloud.com",
   "password": "Password123!"
 }
 
@@ -52,11 +52,7 @@ Content-Type: application/json
 ### Save Workspace ID
 @workspaceId = {{createWorkspace.response.body.id}}
 
-### 6. List User Workspaces
-GET {{baseUrl}}/workspaces/ HTTP/1.1
-Authorization: Bearer {{authToken}}
-
-### 7. Create Project in Workspace
+### 6. Create Project in Workspace
 # @name createProject
 POST {{baseUrl}}/projects/ HTTP/1.1
 Authorization: Bearer {{authToken}}
@@ -64,11 +60,31 @@ Content-Type: application/json
 
 {
   "workspace_id": "{{workspaceId}}",
-  "name": "Acme Knowledge Assistant",
-  "description": "Enterprise multi-agent assistant with RAG pipelines",
-  "repository_url": "https://github.com/acme/knowledge-assistant"
+  "name": "Enterprise Knowledge Microservice",
+  "description": "Customer microservice candidate for Cloud Run migration"
 }
 
-### 8. List Projects in Workspace
-GET {{baseUrl}}/projects/?workspace_id={{workspaceId}} HTTP/1.1
+### Save Project ID
+@projectId = {{createProject.response.body.id}}
+
+### 7. Run Deterministic Diagnostics
+# @name runDiagnostics
+POST {{baseUrl}}/projects/{{projectId}}/diagnose HTTP/1.1
 Authorization: Bearer {{authToken}}
+
+### 8. List Project Findings
+GET {{baseUrl}}/projects/{{projectId}}/findings HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 9. Filter Findings by Severity
+GET {{baseUrl}}/projects/{{projectId}}/findings?severity=high HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 10. Update Finding Status
+PATCH {{baseUrl}}/findings/YOUR_FINDING_ID/status HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "status": "acknowledged"
+}

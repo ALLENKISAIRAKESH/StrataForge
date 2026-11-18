@@ -1,4 +1,12 @@
-from backend.app.models.entities import User, Workspace, WorkspaceMember, Project, Artifact, ProjectFile
+from backend.app.models.entities import (
+    User,
+    Workspace,
+    WorkspaceMember,
+    Project,
+    Artifact,
+    ProjectFile,
+    Finding,
+)
 
 __all__ = [
     "User",
@@ -7,4 +15,5 @@ __all__ = [
     "Project",
     "Artifact",
     "ProjectFile",
+    "Finding",
 ]

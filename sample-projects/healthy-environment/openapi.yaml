@@ -2,10 +2,19 @@ openapi: 3.0.3
 info:
   title: Acme Enterprise Knowledge API
   version: 1.0.0
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 paths:
   /health:
     get:
       summary: Health check
+      security: []
       responses:
         '200':
           description: OK
