@@ -1,14 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+
 from backend.app.core.config import settings
+from backend.app.db.session import engine, Base
+import backend.app.models  # ensure models are registered with Base
 from backend.app.api.v1.endpoints.health import router as health_router
+from backend.app.api.v1.endpoints.auth import router as auth_router
+from backend.app.api.v1.endpoints.workspaces import router as workspaces_router
+from backend.app.api.v1.endpoints.projects import router as projects_router
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("fde-platform")
+
+# Initialize database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -39,6 +48,9 @@ def root_health():
 
 # Include v1 routers
 app.include_router(health_router, prefix=settings.API_V1_STR, tags=["Health"])
+app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["Auth"])
+app.include_router(workspaces_router, prefix=f"{settings.API_V1_STR}/workspaces", tags=["Workspaces"])
+app.include_router(projects_router, prefix=f"{settings.API_V1_STR}/projects", tags=["Projects"])
 
 if __name__ == "__main__":
     import uvicorn

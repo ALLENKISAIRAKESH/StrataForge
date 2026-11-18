@@ -4,8 +4,13 @@ from typing import List
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Enterprise AI Deployment Engineering Platform"
-    VERSION: str = "0.1.0"
+    VERSION: str = "0.2.0"
     API_V1_STR: str = "/api/v1"
+    SECRET_KEY: str = "fde-development-secret-key-32-chars-long-secure-random"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    DATABASE_URL: str = "sqlite:///./fde_platform.db"
+
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
