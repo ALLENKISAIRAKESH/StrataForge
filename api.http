@@ -101,3 +101,15 @@ Authorization: Bearer {{authToken}}
 ### 13. List Document Chunks
 GET {{baseUrl}}/projects/{{projectId}}/chunks?limit=50&offset=0 HTTP/1.1
 Authorization: Bearer {{authToken}}
+
+### 14. Get Executive Production Readiness Audit Report (JSON)
+GET {{baseUrl}}/projects/{{projectId}}/report HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 15. Download Executive Audit Report (Markdown)
+GET {{baseUrl}}/projects/{{projectId}}/report/download?format=markdown HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 16. Download Executive Audit Report (JSON)
+GET {{baseUrl}}/projects/{{projectId}}/report/download?format=json HTTP/1.1
+Authorization: Bearer {{authToken}}
