@@ -39,8 +39,12 @@ import {
   Trash2,
   GitPullRequest,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  ChevronRight,
 } from 'lucide-react';
+import { ToastContainer, type ToastMessage, type ToastType } from './components/Toast';
+import { CopyButton } from './components/CopyButton';
+import { DiffViewer } from './components/DiffViewer';
 
 interface BackendHealth {
   status: string;
@@ -301,6 +305,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'workspaces' | 'projects' | 'discovery' | 'diagnostics' | 'readiness' | 'workbench' | 'agents' | 'roadmap'>('overview');
+
+  // Modern Toast Notifications
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const addToast = (type: ToastType, message: string, title?: string) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, message, title }]);
+  };
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Auth State
   const [token, setToken] = useState<string | null>(localStorage.getItem('fde_auth_token'));
@@ -598,8 +612,9 @@ export default function App() {
       setShowNewWorkspaceModal(false);
       setNewWsName('');
       setNewWsDesc('');
+      addToast('success', `Client workspace '${ws.name}' provisioned.`, 'Workspace Created');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Workspace Creation Failed');
     }
   };
 
@@ -628,8 +643,9 @@ export default function App() {
       setNewProjName('');
       setNewProjDesc('');
       setNewProjRepo('');
+      addToast('success', `Enterprise project '${proj.name}' initialized.`, 'Project Created');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Project Creation Failed');
     }
   };
 
@@ -679,8 +695,9 @@ export default function App() {
       setFindings(data.findings);
       setActiveProject({ ...activeProject, status: 'analyzed' });
       setActiveTab('diagnostics');
+      addToast('success', `Deterministic diagnostics flagged ${data.findings.length} findings with line citations.`, 'Diagnostics Complete');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Diagnostics Failed');
     } finally {
       setIsDiagnosing(false);
     }
@@ -707,8 +724,9 @@ export default function App() {
         setChunks(chunkData);
       }
       setActiveTab('readiness');
+      addToast('success', `Vertex AI Data Readiness: ${data.overall_score.toFixed(1)}% readiness index.`, 'Readiness Assessed');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Readiness Assessment Failed');
     } finally {
       setIsAssessingReadiness(false);
     }
@@ -732,8 +750,9 @@ export default function App() {
         document.body.appendChild(a);
         a.click();
         a.remove();
+        addToast('success', `Audit report exported as .${format === 'json' ? 'json' : 'md'}.`, 'Export Successful');
       })
-      .catch((err) => alert('Download error: ' + err.message));
+      .catch((err) => addToast('error', err.message, 'Download Error'));
   };
 
   const handleRefreshReport = async () => {
@@ -773,8 +792,9 @@ export default function App() {
       setCurrentExecution(data);
       setAgentHistory([data, ...agentHistory]);
       setActiveTab('agents');
+      addToast('success', `${selectedAgentType.toUpperCase()} reasoning stage completed.`, 'Agent Finished');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Agent Execution Failed');
     } finally {
       setIsAgentRunning(false);
     }
@@ -809,8 +829,9 @@ export default function App() {
       }
 
       await fetchBlackboard();
+      addToast('success', 'Autonomous 4-Agent Collaborative Pipeline completed. Unified diffs generated.', 'Pipeline Finished');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Pipeline Failed');
     } finally {
       setIsPipelineRunning(false);
     }
@@ -858,8 +879,9 @@ export default function App() {
       setNewMemoryValue('');
       setShowInjectMemory(false);
       await fetchBlackboard();
+      addToast('success', `Constraint '${newMemoryKey.trim()}' published to shared memory bus.`, 'Memory Injected');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Memory Injection Failed');
     }
   };
 
@@ -873,8 +895,9 @@ export default function App() {
       });
       if (!res.ok) throw new Error('Failed to clear memory');
       await fetchBlackboard();
+      addToast('info', 'Blackboard memory bus cleared.', 'Memory Bus Reset');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Memory Clear Failed');
     }
   };
 
@@ -923,9 +946,9 @@ export default function App() {
       await fetchBlackboard();
       setActiveReviewPatch(null);
       setReviewComments('');
-      alert(data.message);
+      addToast('success', data.message || 'Remediation patch applied safely to repository disk files.', 'Patch Applied');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Patch Application Failed');
     } finally {
       setIsApplyingPatch(false);
     }
@@ -960,9 +983,9 @@ export default function App() {
       await fetchBlackboard();
       setActiveReviewPatch(null);
       setReviewComments('');
-      alert(`Decision recorded: ${action.toUpperCase()}`);
+      addToast('success', `Human review decision '${action.toUpperCase()}' recorded to audit ledger.`, 'Decision Recorded');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Review Submission Failed');
     }
   };
 
@@ -999,8 +1022,9 @@ export default function App() {
       document.body.appendChild(a);
       a.click();
       a.remove();
+      addToast('success', 'Complete Terraform archive (.zip) downloaded.', 'Download Started');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Terraform Download Failed');
     }
   };
 
@@ -1018,8 +1042,9 @@ export default function App() {
       });
       if (!res.ok) throw new Error('Status update failed');
       setFindings(findings.map((f) => (f.id === findingId ? { ...f, status: newStatus as any } : f)));
+      addToast('info', `Finding marked as ${newStatus}.`, 'Status Updated');
     } catch (err: any) {
-      alert(err.message);
+      addToast('error', err.message, 'Status Update Failed');
     }
   };
 
@@ -1046,74 +1071,123 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#060913] text-slate-100 flex flex-col font-sans relative selection:bg-indigo-500 selection:text-white">
+      {/* Radiant Background Ambient Glow */}
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(99,102,241,0.14),rgba(6,182,212,0.05),transparent)] z-0" />
+
       {/* Top Navbar */}
-      <header className="border-b border-slate-800 bg-[#0d131f]/90 backdrop-blur px-6 py-3.5 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-600/20 border border-blue-500/30 rounded-lg text-blue-400">
-            <ShieldCheck className="w-5 h-5" />
+      <header className="border-b border-slate-800/80 bg-[#080d1a]/85 backdrop-blur-xl px-6 py-3 flex items-center justify-between sticky top-0 z-40 shadow-xl">
+        <div className="flex items-center gap-4">
+          {/* Brand Logo */}
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 rounded-xl text-white shadow-lg shadow-indigo-950/50 flex items-center justify-center">
+              <Zap className="w-5 h-5 fill-white/20" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-black tracking-tight text-white font-mono bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+                  StrataForge<span className="text-cyan-400">.ai</span>
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-950/80 to-purple-950/80 text-indigo-300 border border-indigo-700/50">
+                  Google FDE
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">Enterprise Autonomous Cloud Engineering</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-              Enterprise AI Engineering Platform
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 border border-blue-700/50">
-                Google FDE Flagship
-              </span>
-            </h1>
-            <p className="text-[11px] text-slate-400">Production AI Readiness & Multi-Tenant Diagnostics</p>
-          </div>
+
+          {/* Breadcrumb Hierarchy */}
+          {currentUser && activeWorkspace && (
+            <div className="hidden lg:flex items-center gap-2 pl-4 border-l border-slate-800/80 text-xs">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-300 hover:border-slate-700 transition-colors">
+                <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
+                <select
+                  className="bg-transparent text-slate-200 focus:outline-none cursor-pointer max-w-[180px] truncate"
+                  value={activeWorkspace?.id || ''}
+                  onChange={(e) => {
+                    const ws = workspaces.find((w) => w.id === e.target.value);
+                    if (ws) setActiveWorkspace(ws);
+                  }}
+                >
+                  {workspaces.map((w) => (
+                    <option key={w.id} value={w.id} className="bg-slate-900 text-slate-100">
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+
+              {activeProject ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-300">
+                    <FolderGit2 className="w-3.5 h-3.5 text-cyan-400" />
+                    <select
+                      className="bg-transparent text-cyan-200 font-medium focus:outline-none cursor-pointer max-w-[200px] truncate"
+                      value={activeProject?.id || ''}
+                      onChange={(e) => {
+                        const proj = projects.find((p) => p.id === e.target.value);
+                        if (proj) setActiveProject(proj);
+                      }}
+                    >
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-slate-900 text-slate-100">
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Dynamic Status Badge */}
+                  {findings.length === 0 && activeProject.status === 'ready_for_deployment' ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 text-[10px] font-semibold flex items-center gap-1.5 shadow-sm shadow-emerald-950">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Ready for Cloud Run
+                    </span>
+                  ) : findings.length > 0 ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/50 text-[10px] font-semibold flex items-center gap-1.5 shadow-sm shadow-amber-950">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      {findings.length} Findings Flagged
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Right Nav */}
         <div className="flex items-center gap-3">
-          {currentUser && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-xs">
-              <Briefcase className="w-3.5 h-3.5 text-blue-400" />
-              <select
-                className="bg-transparent text-slate-200 focus:outline-none cursor-pointer"
-                value={activeWorkspace?.id || ''}
-                onChange={(e) => {
-                  const ws = workspaces.find((w) => w.id === e.target.value);
-                  if (ws) setActiveWorkspace(ws);
-                }}
-              >
-                {workspaces.map((w) => (
-                  <option key={w.id} value={w.id} className="bg-slate-900 text-slate-100">
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs">
+          {/* FastAPI Telemetry Status Pill */}
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-xs">
             <span className="relative flex h-2 w-2">
               <span
                 className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  health ? 'bg-emerald-400' : 'bg-amber-400'
+                  health ? 'bg-emerald-400' : 'bg-rose-400'
                 }`}
               />
               <span
                 className={`relative inline-flex rounded-full h-2 w-2 ${
-                  health ? 'bg-emerald-500' : 'bg-amber-500'
+                  health ? 'bg-emerald-500' : 'bg-rose-500'
                 }`}
               />
             </span>
-            <span className="text-slate-300 text-[11px]">
-              {loading ? 'FastAPI...' : health ? `v${health.version}` : error ? `Offline` : 'Offline'}
+            <span className="text-slate-300 text-[11px] font-mono">
+              {loading ? 'FastAPI...' : health ? `Engine v${health.version}` : error ? `Offline` : 'Offline'}
             </span>
           </div>
 
           {currentUser ? (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-slate-200">
-                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-medium">{currentUser.full_name || currentUser.email}</span>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-200">
+                <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="font-semibold text-slate-100">{currentUser.full_name || currentUser.email}</span>
               </div>
               <button
                 onClick={handleLogout}
                 title="Log Out"
-                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-xl transition-colors"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -1124,7 +1198,7 @@ export default function App() {
                 setAuthError(null);
                 setShowAuthModal(true);
               }}
-              className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+              className="text-xs flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-950/50 transition-all"
             >
               <LogIn className="w-3.5 h-3.5" /> Sign In / Register
             </button>
@@ -1151,18 +1225,18 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id as any)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
                     isActive
-                      ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold shadow-md shadow-indigo-950/50 border-l-2 border-cyan-400'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-medium'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className="w-4 h-4" />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-300' : 'text-slate-500'}`} />
                     {item.label}
                   </div>
                   {item.count !== undefined && (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${isActive ? 'bg-indigo-950 text-cyan-200' : 'bg-slate-800/80 text-slate-400'}`}>
                       {item.count}
                     </span>
                   )}
@@ -1187,23 +1261,23 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id as any)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
                     isActive
-                      ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold shadow-md shadow-indigo-950/50 border-l-2 border-cyan-400'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-medium'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className="w-4 h-4" />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-300' : 'text-slate-500'}`} />
                     {item.label}
                   </div>
                   {item.count !== undefined && item.count > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800 font-mono">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-950 text-amber-300 border border-amber-800/60 font-mono font-semibold">
                       {item.count}
                     </span>
                   )}
                   {item.badge !== undefined && (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-950 text-blue-300 border border-blue-800 font-mono">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-950 text-cyan-300 border border-indigo-800/60 font-mono font-semibold">
                       {item.badge}
                     </span>
                   )}
@@ -2616,9 +2690,7 @@ export default function App() {
                                     />
                                   </div>
                                 )}
-                                <pre className="p-2.5 bg-slate-950 rounded text-[10px] font-mono text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed border border-slate-900">
-                                  {patch}
-                                </pre>
+                                <DiffViewer diffText={patch} />
                               </div>
                             );
                           })}
@@ -2629,6 +2701,7 @@ export default function App() {
                           <div className="flex items-center justify-between">
                             <div className="text-[11px] font-semibold text-slate-400 uppercase">Google Cloud Run v2 Terraform Resource</div>
                             <div className="flex items-center gap-2">
+                              <CopyButton text={currentExecution.structured_data.terraform_config} label="Copy HCL" />
                               {feedbackList.some((f) => f.target_type === 'terraform' && f.action === 'approve') ? (
                                 <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-1 font-mono">
                                   <Check className="w-3 h-3" /> IaC Approved
@@ -3033,6 +3106,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Modern Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }
