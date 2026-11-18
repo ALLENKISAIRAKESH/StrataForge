@@ -2812,6 +2812,13 @@ export default function App() {
                     active: true,
                     details: 'Golden dataset confusion matrix benchmarking (Precision, Recall, F1 >= 0.85), rule coverage index, and 100% line-level zero-hallucination grounding verification.',
                   },
+                  {
+                    phase: 'Phase 4: Week 15',
+                    title: 'Containerized CI/CD & Google Cloud Build Pipeline',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Multi-stage Docker builds with least-privilege non-root execution (UID 10001), Cloud Build 6-stage pipeline (cloudbuild.yaml), and Trivy vulnerability gate.',
+                  },
                 ].map((item, idx) => (
                   <div
                     key={idx}

@@ -1,0 +1,48 @@
+# ==============================================================================
+# Production Docker Compose Configuration
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fde-enterprise-backend:prod
+    container_name: fde-backend-prod
+    restart: always
+    environment:
+      - ENVIRONMENT=production
+      - PROJECT_NAME=Enterprise AI Deployment Platform
+      - DB_PASSWORD=fde_prod_password_123
+      - SECRET_KEY=fde_super_secret_jwt_key_32_bytes_min
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - fde-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: fde-enterprise-frontend:prod
+    container_name: fde-frontend-prod
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - fde-net
+
+networks:
+  fde-net:
+    driver: bridge
