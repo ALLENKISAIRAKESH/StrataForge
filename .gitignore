@@ -40,6 +40,10 @@ wheels/
 *.sqlite
 *.sqlite3
 
+# Uploads & Extraction Storage
+storage/
+**/storage/
+
 # Logs
 logs
 *.log

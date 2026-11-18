@@ -10,6 +10,11 @@ from backend.app.schemas.project import (
     ProjectUpdate,
     ProjectResponse,
 )
+from backend.app.schemas.artifact import (
+    ArtifactResponse,
+    ProjectFileResponse,
+    EnvironmentInventory,
+)
 
 __all__ = [
     "UserCreate",
@@ -24,4 +29,7 @@ __all__ = [
     "ProjectCreate",
     "ProjectUpdate",
     "ProjectResponse",
+    "ArtifactResponse",
+    "ProjectFileResponse",
+    "EnvironmentInventory",
 ]

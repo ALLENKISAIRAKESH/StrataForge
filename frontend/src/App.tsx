@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   ShieldCheck,
   Layers,
@@ -14,7 +14,13 @@ import {
   LogOut,
   LogIn,
   KeyRound,
-  ExternalLink
+  ExternalLink,
+  UploadCloud,
+  FileCode,
+  Box,
+  Cloud,
+  Code2,
+  Check
 } from 'lucide-react';
 
 interface BackendHealth {
@@ -51,6 +57,30 @@ interface Project {
   created_at: string;
 }
 
+interface ProjectFile {
+  id: string;
+  relative_path: string;
+  filename: string;
+  category: string;
+  file_type: string;
+  size_bytes: number;
+  line_count: number;
+}
+
+interface EnvironmentInventory {
+  project_id: string;
+  artifact_id: string;
+  total_files: number;
+  total_lines: number;
+  category_counts: Record<string, number>;
+  file_type_counts: Record<string, number>;
+  detected_languages: string[];
+  detected_frameworks: string[];
+  detected_containers: string[];
+  detected_infrastructure: string[];
+  files: ProjectFile[];
+}
+
 export default function App() {
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +101,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [showNewWorkspaceModal, setShowNewWorkspaceModal] = useState(false);
   const [newWsName, setNewWsName] = useState('');
   const [newWsDesc, setNewWsDesc] = useState('');
@@ -78,6 +109,13 @@ export default function App() {
   const [newProjName, setNewProjName] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
   const [newProjRepo, setNewProjRepo] = useState('');
+
+  // Upload & Inventory State
+  const [inventory, setInventory] = useState<EnvironmentInventory | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 1. Health check
   useEffect(() => {
@@ -140,17 +178,38 @@ export default function App() {
   useEffect(() => {
     if (!token || !activeWorkspace) {
       setProjects([]);
+      setActiveProject(null);
+      setInventory(null);
       return;
     }
     fetch(`/api/v1/projects/?workspace_id=${activeWorkspace.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: Project[]) => setProjects(data))
+      .then((data: Project[]) => {
+        setProjects(data);
+        if (data.length > 0 && (!activeProject || activeProject.workspace_id !== activeWorkspace.id)) {
+          setActiveProject(data[0]);
+        }
+      })
       .catch(console.error);
   }, [token, activeWorkspace]);
 
-  // Handle Authentication submit
+  // 5. Fetch inventory for active project
+  useEffect(() => {
+    if (!token || !activeProject) {
+      setInventory(null);
+      return;
+    }
+    fetch(`/api/v1/projects/${activeProject.id}/inventory`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((inv: EnvironmentInventory | null) => setInventory(inv))
+      .catch(() => setInventory(null));
+  }, [token, activeProject]);
+
+  // Authentication Handlers
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -185,6 +244,8 @@ export default function App() {
     setWorkspaces([]);
     setActiveWorkspace(null);
     setProjects([]);
+    setActiveProject(null);
+    setInventory(null);
   };
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
@@ -231,12 +292,45 @@ export default function App() {
       if (!res.ok) throw new Error('Failed to create project');
       const proj: Project = await res.json();
       setProjects([proj, ...projects]);
+      setActiveProject(proj);
       setShowNewProjectModal(false);
       setNewProjName('');
       setNewProjDesc('');
       setNewProjRepo('');
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  // ZIP Upload Handler
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !token || !activeProject) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+      setInventory(data);
+      setUploadSuccess(`Successfully extracted ${data.total_files} files (${data.total_lines} lines of code)!`);
+      setActiveProject({ ...activeProject, status: 'uploaded' });
+    } catch (err: any) {
+      setUploadError(err.message);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -259,9 +353,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right Nav / User & Health */}
+        {/* Right Nav */}
         <div className="flex items-center gap-3">
-          {/* Active Workspace Selector */}
           {currentUser && (
             <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-xs">
               <Briefcase className="w-3.5 h-3.5 text-blue-400" />
@@ -282,7 +375,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Backend Status Pill */}
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs">
             <span className="relative flex h-2 w-2">
               <span
@@ -297,15 +389,10 @@ export default function App() {
               />
             </span>
             <span className="text-slate-300 text-[11px]">
-              {loading
-                ? 'FastAPI...'
-                : health
-                ? `v${health.version}`
-                : (error ? `Offline (${error})` : 'Offline')}
+              {loading ? 'FastAPI...' : health ? `v${health.version}` : error ? `Offline` : 'Offline'}
             </span>
           </div>
 
-          {/* User Auth Button */}
           {currentUser ? (
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-slate-200">
@@ -336,7 +423,7 @@ export default function App() {
 
       {/* Main Body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Navigation */}
+        {/* Sidebar */}
         <aside className="w-64 border-r border-slate-800/80 bg-[#0b101b] p-4 flex flex-col justify-between hidden md:flex">
           <div className="space-y-1">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-2">
@@ -373,7 +460,7 @@ export default function App() {
             })}
 
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-3 pt-4 py-2">
-              AI & Diagnostics
+              Discovery & Diagnostics
             </div>
             {[
               { id: 'discovery', label: 'Environment Discovery', icon: Terminal },
@@ -402,10 +489,10 @@ export default function App() {
 
           <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl space-y-1 text-xs">
             <div className="text-slate-400 font-medium flex items-center justify-between">
-              <span>Phase 1 Milestone</span>
-              <span className="text-emerald-400 font-semibold">Week 2 Active</span>
+              <span>Phase 2 Milestone</span>
+              <span className="text-emerald-400 font-semibold">Week 3 Active</span>
             </div>
-            <p className="text-[11px] text-slate-500">Auth, DB Models & Multi-Tenant Workspaces</p>
+            <p className="text-[11px] text-slate-500">Safe Ingestion, Extraction & File Classification</p>
           </div>
         </aside>
 
@@ -421,8 +508,7 @@ export default function App() {
                       Enterprise AI Deployment Engineering Platform
                     </h2>
                     <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                      Designed for Google Cloud Forward Deployed Engineers: inspects enterprise repositories,
-                      diagnoses configuration flaws with deterministic evidence rules, and orchestrates Gemini agents for Cloud Run.
+                      Safe archive ingestion, deterministic static diagnostics, and multi-agent reasoning for Google Cloud Run production deployments.
                     </p>
                   </div>
                   {currentUser && (
@@ -436,16 +522,16 @@ export default function App() {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
                   <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
+                    Safe Ingestion (Zip Slip Defenses)
+                  </span>
+                  <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
+                    Deterministic File Classifier
+                  </span>
+                  <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
                     FastAPI + SQLAlchemy
                   </span>
                   <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
-                    JWT Multi-Tenant Isolation
-                  </span>
-                  <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
-                    React + TypeScript + Tailwind
-                  </span>
-                  <span className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
-                    PostgreSQL / SQLite
+                    Docker & Terraform Discovery
                   </span>
                 </div>
               </div>
@@ -453,38 +539,32 @@ export default function App() {
               {/* Status Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Database & Auth</div>
-                  <div className="text-xl font-bold text-white flex items-center gap-2">
-                    {currentUser ? (
-                      <span className="text-emerald-400 flex items-center gap-1.5 text-base font-semibold">
-                        <CheckCircle2 className="w-5 h-5" /> Authenticated
-                      </span>
-                    ) : (
-                      <span className="text-amber-400 flex items-center gap-1.5 text-base font-semibold">
-                        <KeyRound className="w-5 h-5" /> Guest Mode
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 text-xs text-slate-500">
-                    {currentUser ? currentUser.email : 'Sign in to access workspaces & projects'}
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Active Workspace</div>
+                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Active Target Project</div>
                   <div className="text-xl font-bold text-white truncate">
-                    {activeWorkspace ? activeWorkspace.name : 'None Selected'}
+                    {activeProject ? activeProject.name : 'None Selected'}
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
-                    {activeWorkspace ? `Slug: ${activeWorkspace.slug}` : 'Create a workspace to begin'}
+                    Status: <span className="font-mono text-blue-400">{activeProject?.status || 'idle'}</span>
                   </div>
                 </div>
 
                 <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Registered Projects</div>
-                  <div className="text-xl font-bold text-blue-400">{projects.length}</div>
+                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Discovered Files</div>
+                  <div className="text-xl font-bold text-white">
+                    {inventory ? `${inventory.total_files} files` : '0 files'}
+                  </div>
                   <div className="mt-2 text-xs text-slate-500">
-                    Isolated under current workspace
+                    {inventory ? `${inventory.total_lines} lines of code classified` : 'Awaiting archive upload'}
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <div className="text-slate-400 text-xs font-medium uppercase mb-1">Security Defense</div>
+                  <div className="text-xl font-bold text-emerald-400 flex items-center gap-1.5 text-base">
+                    <CheckCircle2 className="w-5 h-5" /> Enforced
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    Zip Slip, Symlinks & Bomb limits active
                   </div>
                 </div>
               </div>
@@ -494,34 +574,198 @@ export default function App() {
                 onClick={() => {
                   if (!currentUser) setShowAuthModal(true);
                   else if (!activeWorkspace) setShowNewWorkspaceModal(true);
-                  else setShowNewProjectModal(true);
+                  else if (!activeProject) setShowNewProjectModal(true);
+                  else fileInputRef.current?.click();
                 }}
                 className="p-8 rounded-2xl border-2 border-dashed border-slate-800 hover:border-blue-600/50 bg-[#0d1320]/40 text-center space-y-3 transition-colors cursor-pointer"
               >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".zip"
+                  className="hidden"
+                />
                 <div className="mx-auto w-12 h-12 rounded-full bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                  <FolderGit2 className="w-6 h-6" />
+                  <UploadCloud className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-white">Upload Enterprise Project Archive</h3>
+                  <h3 className="text-base font-semibold text-white">
+                    {isUploading ? 'Extracting & Classifying Files...' : 'Upload Enterprise Project Archive (.zip)'}
+                  </h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                    Safely unpacks Dockerfiles, Terraform scripts, and API specs with ZIP-slip protection and evidence recording.
+                    Safely inspects Dockerfiles, Terraform scripts, and dependencies with zero execution of untrusted user code.
                   </p>
                 </div>
-                <button className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors">
-                  {currentUser ? 'Start Assessment' : 'Sign In to Begin'}
+                {uploadError && (
+                  <p className="text-xs text-rose-400 bg-rose-950/40 p-2 rounded-lg max-w-md mx-auto">
+                    {uploadError}
+                  </p>
+                )}
+                {uploadSuccess && (
+                  <p className="text-xs text-emerald-400 bg-emerald-950/40 p-2 rounded-lg max-w-md mx-auto flex items-center justify-center gap-1.5">
+                    <Check className="w-4 h-4" /> {uploadSuccess}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors"
+                >
+                  {isUploading ? 'Processing...' : activeProject ? `Upload to ${activeProject.name}` : 'Select Archive (.zip)'}
                 </button>
               </div>
+
+              {/* Real Inventory Display */}
+              {inventory && (
+                <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                      <Terminal className="w-4 h-4 text-blue-400" />
+                      Discovered Technology Stack
+                    </h3>
+                    <span className="text-xs text-slate-400">
+                      {inventory.total_files} Files &bull; {inventory.total_lines} Lines
+                    </span>
+                  </div>
+
+                  {/* Discovered Badges */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
+                        <Code2 className="w-3.5 h-3.5 text-blue-400" /> Languages
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {inventory.detected_languages.map((l) => (
+                          <span key={l} className="text-[10px] px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">
+                            {l}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
+                        <Box className="w-3.5 h-3.5 text-purple-400" /> Frameworks
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {inventory.detected_frameworks.length > 0 ? (
+                          inventory.detected_frameworks.map((f) => (
+                            <span key={f} className="text-[10px] px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">
+                              {f}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-500">None detected</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
+                        <Box className="w-3.5 h-3.5 text-amber-400" /> Containers
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {inventory.detected_containers.length > 0 ? (
+                          inventory.detected_containers.map((c) => (
+                            <span key={c} className="text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                              {c}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-500">None</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mb-1.5">
+                        <Cloud className="w-3.5 h-3.5 text-emerald-400" /> Infrastructure
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {inventory.detected_infrastructure.length > 0 ? (
+                          inventory.detected_infrastructure.map((i) => (
+                            <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                              {i}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-500">None</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Classified File Explorer */}
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                      Classified Project Files
+                    </h4>
+                    <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 divide-y divide-slate-800/60 text-xs">
+                      {inventory.files.map((file) => (
+                        <div key={file.id} className="p-2.5 px-4 flex items-center justify-between hover:bg-slate-900/50">
+                          <div className="flex items-center gap-2">
+                            <FileCode className="w-4 h-4 text-slate-400" />
+                            <span className="font-mono text-slate-200">{file.relative_path}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                              {file.category}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {file.line_count} lines
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 2: WORKSPACES */}
+          {/* TAB 2: DISCOVERY */}
+          {activeTab === 'discovery' && (
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Environment Discovery Engine</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Parses enterprise configurations, mapping service architectures and dependencies.
+                  </p>
+                </div>
+              </div>
+
+              {inventory ? (
+                <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-4">
+                  <h3 className="text-sm font-semibold text-white">Classified File Inventory</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {Object.entries(inventory.category_counts).map(([cat, count]) => (
+                      <div key={cat} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                        <div className="text-[10px] text-slate-400 uppercase font-mono">{cat}</div>
+                        <div className="text-lg font-bold text-white mt-1">{count} files</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
+                  <Terminal className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                  <p className="text-sm text-slate-300">Upload a project archive to run environment discovery.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: WORKSPACES */}
           {activeTab === 'workspaces' && (
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-white">Multi-Tenant Workspaces</h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Each workspace represents an isolated enterprise domain with dedicated project boundaries.
+                    Isolated enterprise boundaries with dedicated project scoping.
                   </p>
                 </div>
                 {currentUser && (
@@ -538,11 +782,6 @@ export default function App() {
                 <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/50 text-center">
                   <KeyRound className="w-8 h-8 text-slate-500 mx-auto mb-2" />
                   <p className="text-sm text-slate-300">Sign in to manage workspaces.</p>
-                </div>
-              ) : workspaces.length === 0 ? (
-                <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/50 text-center">
-                  <Briefcase className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                  <p className="text-sm text-slate-300">No workspaces found. Create your first workspace!</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -573,7 +812,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: PROJECTS */}
+          {/* TAB 4: PROJECTS */}
           {activeTab === 'projects' && (
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
@@ -581,9 +820,6 @@ export default function App() {
                   <h2 className="text-xl font-bold text-white">
                     Projects {activeWorkspace && <span className="text-blue-400 font-normal">in {activeWorkspace.name}</span>}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Target enterprise repositories subjected to environment discovery and readiness diagnostics.
-                  </p>
                 </div>
                 {currentUser && activeWorkspace && (
                   <button
@@ -595,64 +831,46 @@ export default function App() {
                 )}
               </div>
 
-              {!currentUser ? (
-                <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/50 text-center">
-                  <KeyRound className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                  <p className="text-sm text-slate-300">Sign in to view and create projects.</p>
-                </div>
-              ) : !activeWorkspace ? (
-                <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/50 text-center">
-                  <Briefcase className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                  <p className="text-sm text-slate-300">Select or create a workspace first.</p>
-                </div>
-              ) : projects.length === 0 ? (
-                <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/50 text-center">
-                  <FolderGit2 className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                  <p className="text-sm text-slate-300">No projects registered in this workspace.</p>
-                  <button
-                    onClick={() => setShowNewProjectModal(true)}
-                    className="mt-3 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg"
+              <div className="space-y-3">
+                {projects.map((proj) => (
+                  <div
+                    key={proj.id}
+                    onClick={() => setActiveProject(proj)}
+                    className={`p-5 rounded-xl border transition-all cursor-pointer ${
+                      activeProject?.id === proj.id
+                        ? 'bg-blue-950/20 border-blue-500/40'
+                        : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                    }`}
                   >
-                    Create Project
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {projects.map((proj) => (
-                    <div
-                      key={proj.id}
-                      className="p-5 rounded-xl border border-slate-800 bg-slate-900/50 flex items-center justify-between"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-white text-sm">{proj.name}</h3>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
-                            {proj.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400">{proj.description || 'No description'}</p>
-                        {proj.repository_url && (
-                          <a
-                            href={proj.repository_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11px] text-blue-400 hover:underline flex items-center gap-1 inline-flex"
-                          >
-                            <ExternalLink className="w-3 h-3" /> {proj.repository_url}
-                          </a>
-                        )}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-white text-sm">{proj.name}</h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                          {proj.status}
+                        </span>
                       </div>
-                      <button className="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">
-                        Run Discovery
-                      </button>
+                      {activeProject?.id === proj.id && (
+                        <span className="text-[10px] text-blue-400 font-medium">Selected</span>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
+                    <p className="text-xs text-slate-400">{proj.description || 'No description'}</p>
+                    {proj.repository_url && (
+                      <a
+                        href={proj.repository_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-blue-400 hover:underline flex items-center gap-1 inline-flex mt-2"
+                      >
+                        <ExternalLink className="w-3 h-3" /> {proj.repository_url}
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* TAB 4: ROADMAP */}
+          {/* TAB 5: ROADMAP */}
           {activeTab === 'roadmap' && (
             <div className="max-w-4xl mx-auto space-y-4">
               <h2 className="text-xl font-bold text-white">16-Week Google FDE Execution Plan</h2>
@@ -668,23 +886,23 @@ export default function App() {
                   {
                     phase: 'Phase 1: Week 2',
                     title: 'Database, Authentication & Multi-Tenant Isolation',
+                    status: 'Completed',
+                    active: true,
+                    details: 'SQLAlchemy models (Users, Workspaces, Projects), JWT auth, strict tenant isolation.',
+                  },
+                  {
+                    phase: 'Phase 2: Week 3',
+                    title: 'Secure File Ingestion & File Classification',
                     status: 'Completed (Tested)',
                     active: true,
-                    details: 'SQLAlchemy models (Users, Workspaces, Projects), JWT auth, strict tenant isolation, 15 automated pytest tests passing.',
+                    details: 'Zip Slip & bomb defenses, deterministic file classifier, ProjectFile metadata inventory, 19 automated tests passing.',
                   },
                   {
-                    phase: 'Phase 2: Weeks 3-6',
-                    title: 'Environment Discovery & Static Diagnostics',
+                    phase: 'Phase 2: Week 4',
+                    title: 'Static Diagnostic Rule Engine & Evidence Collection',
                     status: 'Next Up',
                     active: false,
-                    details: 'Safe ZIP extraction, technology classification, deterministic rules for Docker, OpenAPI, SQL, dependencies.',
-                  },
-                  {
-                    phase: 'Phase 3: Weeks 7-10',
-                    title: 'Data Readiness & Multi-Agent Reasoning',
-                    status: 'Upcoming',
-                    active: false,
-                    details: 'Chunking, pgvector search, Google ADK orchestration (Discovery, Security, Deployment agents).',
+                    details: 'Deterministic inspection rules for Dockerfiles, OpenAPI, SQL schemas, and unpinned dependencies with exact line citations.',
                   },
                 ].map((item, idx) => (
                   <div
@@ -711,13 +929,12 @@ export default function App() {
             </div>
           )}
 
-          {/* OTHER TABS */}
-          {activeTab !== 'overview' && activeTab !== 'workspaces' && activeTab !== 'projects' && activeTab !== 'roadmap' && (
+          {activeTab !== 'overview' && activeTab !== 'workspaces' && activeTab !== 'projects' && activeTab !== 'discovery' && activeTab !== 'roadmap' && (
             <div className="max-w-4xl mx-auto p-12 text-center border border-slate-800 rounded-2xl bg-slate-900/40">
-              <Terminal className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+              <Activity className="w-10 h-10 text-slate-500 mx-auto mb-3" />
               <h3 className="text-lg font-bold text-white capitalize">{activeTab} Engine</h3>
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Scheduled for Phase 2 &bull; Environment Discovery & Multi-Agent Synthesis Pipeline.
+                Scheduled for Week 4 &bull; Deterministic static inspection & multi-agent reasoning.
               </p>
             </div>
           )}
@@ -731,18 +948,11 @@ export default function App() {
             <h3 className="text-lg font-bold text-white mb-1">
               {authMode === 'login' ? 'Sign in to Platform' : 'Create an Account'}
             </h3>
-            <p className="text-xs text-slate-400 mb-4">
-              {authMode === 'login'
-                ? 'Enter your credentials to access your enterprise workspaces.'
-                : 'Register as an engineer to provision workspaces and audit environments.'}
-            </p>
-
             {authError && (
               <div className="mb-4 p-3 bg-rose-950/50 border border-rose-800 text-rose-300 text-xs rounded-lg">
                 {authError}
               </div>
             )}
-
             <form onSubmit={handleAuthSubmit} className="space-y-3">
               {authMode === 'register' && (
                 <div>
@@ -779,14 +989,10 @@ export default function App() {
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
-
               <div className="pt-2 flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => {
-                    setAuthMode(authMode === 'login' ? 'register' : 'login');
-                    setAuthError(null);
-                  }}
+                  onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
                   className="text-xs text-blue-400 hover:underline"
                 >
                   {authMode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign In'}
@@ -795,7 +1001,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setShowAuthModal(false)}
-                    className="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
+                    className="text-xs px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg"
                   >
                     Cancel
                   </button>
@@ -817,7 +1023,6 @@ export default function App() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0e1424] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-1">Create Workspace</h3>
-            <p className="text-xs text-slate-400 mb-4">Provision a new isolated enterprise workspace.</p>
             <form onSubmit={handleCreateWorkspace} className="space-y-3">
               <div>
                 <label className="text-xs font-medium text-slate-300 block mb-1">Workspace Name</label>
@@ -865,9 +1070,6 @@ export default function App() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0e1424] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-1">Create Assessment Project</h3>
-            <p className="text-xs text-slate-400 mb-4">
-              Adding project to <span className="text-blue-400">{activeWorkspace?.name}</span>
-            </p>
             <form onSubmit={handleCreateProject} className="space-y-3">
               <div>
                 <label className="text-xs font-medium text-slate-300 block mb-1">Project Name</label>

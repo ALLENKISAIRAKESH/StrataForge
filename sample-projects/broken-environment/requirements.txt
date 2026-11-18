@@ -1,0 +1,5 @@
+# Insecure: Unpinned dependencies
+fastapi
+uvicorn
+sqlalchemy
+requests
