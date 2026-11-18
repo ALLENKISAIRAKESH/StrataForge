@@ -19,6 +19,9 @@ from backend.app.schemas.agent import (
     AgentExecutionResponse,
     ThoughtStep,
     Citation,
+    AgentMemoryEntry,
+    AgentMemoryPublishRequest,
+    AgentBlackboardResponse,
 )
 from pathlib import Path
 from backend.app.api.deps import get_current_user
@@ -26,6 +29,12 @@ from backend.app.api.v1.endpoints.projects import check_user_workspace_access
 from backend.app.services.classifier import scan_and_classify_project
 from backend.app.services.llm_client import execute_agent_reasoning
 from backend.app.services.subagents import run_collaborative_agent_pipeline
+from backend.app.services.memory_bus import (
+    publish_memory,
+    read_memory,
+    get_project_blackboard,
+    clear_project_memory,
+)
 
 router = APIRouter()
 
@@ -290,6 +299,8 @@ def trigger_collaborative_agent_pipeline(
         findings=findings_list,
         data_readiness=data_readiness_dict,
         custom_instruction=custom_instr,
+        project_id=project.id,
+        db=db,
     )
 
     # Save summary execution record
@@ -316,4 +327,108 @@ def trigger_collaborative_agent_pipeline(
     db.commit()
 
     return pipeline_res
+
+
+@router.get(
+    "/projects/{project_id}/agents/memory",
+    response_model=AgentBlackboardResponse,
+)
+def get_project_agent_memory(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    check_user_workspace_access(project.workspace_id, current_user.id, db)
+
+    blackboard, memories = get_project_blackboard(project_id, db)
+
+    entries = []
+    for m in memories:
+        try:
+            val = json.loads(m.value_json)
+        except Exception:
+            val = m.value_json
+        entries.append(
+            AgentMemoryEntry(
+                id=m.id,
+                project_id=m.project_id,
+                key=m.key,
+                source_agent=m.source_agent,
+                value=val,
+                confidence=m.confidence,
+                created_at=m.created_at,
+                updated_at=m.updated_at,
+            )
+        )
+
+    return AgentBlackboardResponse(
+        project_id=project_id,
+        blackboard=blackboard,
+        memories=entries,
+        total_keys=len(entries),
+    )
+
+
+@router.post(
+    "/projects/{project_id}/agents/memory",
+    response_model=AgentMemoryEntry,
+    status_code=status.HTTP_201_CREATED,
+)
+def publish_project_agent_memory(
+    project_id: str,
+    payload: AgentMemoryPublishRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    check_user_workspace_access(project.workspace_id, current_user.id, db)
+
+    memory = publish_memory(
+        project_id=project_id,
+        key=payload.key,
+        value=payload.value,
+        source_agent=payload.source_agent,
+        confidence=payload.confidence,
+        db=db,
+    )
+
+    try:
+        val = json.loads(memory.value_json)
+    except Exception:
+        val = memory.value_json
+
+    return AgentMemoryEntry(
+        id=memory.id,
+        project_id=memory.project_id,
+        key=memory.key,
+        source_agent=memory.source_agent,
+        value=val,
+        confidence=memory.confidence,
+        created_at=memory.created_at,
+        updated_at=memory.updated_at,
+    )
+
+
+@router.delete(
+    "/projects/{project_id}/agents/memory",
+    status_code=status.HTTP_200_OK,
+)
+def clear_project_agent_memory(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    check_user_workspace_access(project.workspace_id, current_user.id, db)
+
+    count = clear_project_memory(project_id, db)
+    return {"status": "cleared", "deleted_keys": count}
+
 

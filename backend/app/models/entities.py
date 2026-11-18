@@ -95,6 +95,7 @@ class Project(Base):
     chunks = relationship("DocumentChunk", back_populates="project", cascade="all, delete-orphan")
     readiness_reports = relationship("DataReadinessReport", back_populates="project", cascade="all, delete-orphan")
     agent_executions = relationship("AgentExecution", back_populates="project", cascade="all, delete-orphan")
+    memories = relationship("AgentMemory", back_populates="project", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_projects_workspace_name", "workspace_id", "name"),
@@ -239,4 +240,25 @@ class AgentExecution(Base):
     # Relationships
     project = relationship("Project", back_populates="agent_executions")
     user = relationship("User")
+
+
+class AgentMemory(Base):
+    __tablename__ = "agent_memories"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    key = Column(String(100), nullable=False)  # e.g., 'topology', 'security_risks', 'rag_strategy', 'deployment_spec'
+    source_agent = Column(String(50), nullable=False)  # discovery, security, data_readiness, deployment_planner, user
+    value_json = Column(Text, nullable=False)  # JSON-encoded memory state
+    confidence = Column(Float, default=1.0, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    # Relationships
+    project = relationship("Project", back_populates="memories")
+
+    __table_args__ = (
+        Index("ix_agent_memory_project_key", "project_id", "key", unique=True),
+    )
+
 

@@ -34,7 +34,9 @@ import {
   Brain,
   Clock,
   Quote,
-  Zap
+  Zap,
+  Share2,
+  Trash2
 } from 'lucide-react';
 
 interface BackendHealth {
@@ -246,6 +248,24 @@ interface AgentExecution {
   created_at: string;
 }
 
+interface AgentMemoryEntry {
+  id: string;
+  project_id: string;
+  key: string;
+  source_agent: string;
+  value: any;
+  confidence: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AgentBlackboard {
+  project_id: string;
+  blackboard: Record<string, any>;
+  memories: AgentMemoryEntry[];
+  total_keys: number;
+}
+
 export default function App() {
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,6 +324,11 @@ export default function App() {
   const [isPipelineRunning, setIsPipelineRunning] = useState(false);
   const [currentExecution, setCurrentExecution] = useState<AgentExecution | null>(null);
   const [agentHistory, setAgentHistory] = useState<AgentExecution[]>([]);
+  const [blackboardData, setBlackboardData] = useState<AgentBlackboard | null>(null);
+  const [showInjectMemory, setShowInjectMemory] = useState(false);
+  const [newMemoryKey, setNewMemoryKey] = useState('');
+  const [newMemoryValue, setNewMemoryValue] = useState('');
+  const [newMemoryAgent, setNewMemoryAgent] = useState('human_supervisor');
 
   // 1. Health check
   useEffect(() => {
@@ -445,6 +470,13 @@ export default function App() {
         setAgentHistory([]);
         setCurrentExecution(null);
       });
+
+    fetch(`/api/v1/projects/${activeProject.id}/agents/memory`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((bb: AgentBlackboard | null) => setBlackboardData(bb))
+      .catch(() => setBlackboardData(null));
   }, [token, activeProject]);
 
   // Authentication Handlers
@@ -711,7 +743,7 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Pipeline execution failed');
 
-      // Refresh history to include pipeline record
+      // Refresh history and blackboard
       const histRes = await fetch(`/api/v1/projects/${activeProject.id}/agents/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -720,10 +752,74 @@ export default function App() {
         setAgentHistory(histData);
         if (histData.length > 0) setCurrentExecution(histData[0]);
       }
+
+      await fetchBlackboard();
     } catch (err: any) {
       alert(err.message);
     } finally {
       setIsPipelineRunning(false);
+    }
+  };
+
+  const fetchBlackboard = async () => {
+    if (!token || !activeProject) return;
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/agents/memory`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setBlackboardData(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch blackboard', err);
+    }
+  };
+
+  const handlePublishMemory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !activeProject || !newMemoryKey.trim()) return;
+    try {
+      let parsedVal: any = newMemoryValue;
+      try {
+        parsedVal = JSON.parse(newMemoryValue);
+      } catch {
+        parsedVal = { note: newMemoryValue };
+      }
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/agents/memory`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: newMemoryKey.trim(),
+          value: parsedVal,
+          source_agent: newMemoryAgent.trim() || 'human_supervisor',
+          confidence: 1.0,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to publish memory constraint');
+      setNewMemoryKey('');
+      setNewMemoryValue('');
+      setShowInjectMemory(false);
+      await fetchBlackboard();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleClearMemory = async () => {
+    if (!token || !activeProject) return;
+    if (!window.confirm('Clear all shared memory bus keys for this project?')) return;
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/agents/memory`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to clear memory');
+      await fetchBlackboard();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -1921,6 +2017,136 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Blackboard & Shared Memory Bus Card */}
+              <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-blue-950/60 border border-blue-800/80 text-blue-400">
+                      <Share2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
+                        Shared Agent Blackboard & Memory Bus
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
+                          {blackboardData?.total_keys || 0} Key{blackboardData?.total_keys !== 1 ? 's' : ''} Stored
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Inter-agent persistent state bus: subagents synchronize topology, risks, and deployment constraints here.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowInjectMemory(!showInjectMemory)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      {showInjectMemory ? 'Cancel' : 'Inject Memory'}
+                    </button>
+                    {blackboardData && blackboardData.total_keys > 0 && (
+                      <button
+                        onClick={handleClearMemory}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/60 rounded-lg text-xs font-medium transition-all"
+                        title="Clear all blackboard memories for this project"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Clear Bus
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Inject Memory Form */}
+                {showInjectMemory && (
+                  <form onSubmit={handlePublishMemory} className="p-4 bg-slate-950 rounded-xl border border-blue-900/40 space-y-3">
+                    <div className="text-xs font-semibold text-blue-400 flex items-center gap-1.5">
+                      <Brain className="w-3.5 h-3.5" />
+                      Inject Enterprise Architecture Constraint into Memory Bus
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-1">Memory Key</label>
+                        <input
+                          type="text"
+                          required
+                          value={newMemoryKey}
+                          onChange={(e) => setNewMemoryKey(e.target.value)}
+                          placeholder="e.g. enterprise_compliance_target or custom_policy"
+                          className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-1">Source Agent / Role</label>
+                        <input
+                          type="text"
+                          value={newMemoryAgent}
+                          onChange={(e) => setNewMemoryAgent(e.target.value)}
+                          placeholder="human_supervisor"
+                          className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Value (JSON or Text Note)</label>
+                      <textarea
+                        required
+                        rows={2}
+                        value={newMemoryValue}
+                        onChange={(e) => setNewMemoryValue(e.target.value)}
+                        placeholder='{"region": "asia-south1", "max_instances": 10}'
+                        className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowInjectMemory(false)}
+                        className="px-3 py-1 text-xs text-slate-400 hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold"
+                      >
+                        Publish to Bus
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Blackboard Keys Grid */}
+                {blackboardData && blackboardData.memories.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {blackboardData.memories.map((entry) => (
+                      <div key={entry.id} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800/90 space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-semibold text-blue-400 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                            {entry.key}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
+                            by {entry.source_agent}
+                          </span>
+                        </div>
+                        <pre className="p-2.5 bg-[#0a0e17] rounded-lg text-[10px] font-mono text-slate-300 overflow-x-auto max-h-40 border border-slate-800/60 leading-relaxed">
+                          {JSON.stringify(entry.value, null, 2)}
+                        </pre>
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1">
+                          <span>Confidence: {(entry.confidence * 100).toFixed(0)}%</span>
+                          <span>{new Date(entry.updated_at).toLocaleTimeString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950/50 border border-dashed border-slate-800 text-center text-xs text-slate-500">
+                    No memories published on the blackboard bus yet. Run the 4-Agent Pipeline or inject custom constraints above to initialize shared memory.
+                  </div>
+                )}
+              </div>
+
               {/* Current Execution Output */}
               {currentExecution ? (
                 <div className="space-y-6">
@@ -2146,6 +2372,13 @@ export default function App() {
                     status: 'Completed (Tested)',
                     active: true,
                     details: 'Domain specialists (Discovery, Security with diff patches, Data Readiness, Deployment Strategist with Terraform/Cloud Build), and 4-agent collaborative synthesis.',
+                  },
+                  {
+                    phase: 'Phase 3: Week 9',
+                    title: 'Multi-Agent Orchestration & Shared Memory Bus',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Persistent shared blackboard memory bus allowing subagents to share structured architectural facts, security risks, RAG strategies, and deployment constraints with idempotency and human injection.',
                   },
                 ].map((item, idx) => (
                   <div

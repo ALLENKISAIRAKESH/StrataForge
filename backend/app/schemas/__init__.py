@@ -32,6 +32,9 @@ from backend.app.schemas.agent import (
     AgentReasoningRequest,
     AgentPipelineRequest,
     AgentExecutionResponse,
+    AgentMemoryEntry,
+    AgentMemoryPublishRequest,
+    AgentBlackboardResponse,
 )
 
 __all__ = [
@@ -60,5 +63,9 @@ __all__ = [
     "Citation",
     "ThoughtStep",
     "AgentReasoningRequest",
+    "AgentPipelineRequest",
     "AgentExecutionResponse",
+    "AgentMemoryEntry",
+    "AgentMemoryPublishRequest",
+    "AgentBlackboardResponse",
 ]

@@ -8,9 +8,11 @@ Implements Google Cloud Consulting FDE domain specialists:
 5. Multi-Agent Collaborative Pipeline (Chained Sequential & Fan-Out Orchestration)
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
 from backend.app.core.prompts import AGENT_ROLES
 from backend.app.services.llm_client import execute_agent_reasoning
+from backend.app.services.memory_bus import publish_memory, get_project_blackboard
 
 
 def generate_security_patch(finding: dict) -> str:
@@ -179,13 +181,15 @@ def run_collaborative_agent_pipeline(
     findings: list,
     data_readiness: dict | None,
     custom_instruction: str | None = None,
+    project_id: str | None = None,
+    db: Session | None = None,
 ) -> Dict[str, Any]:
     """
     Executes the 4-agent collaborative workflow:
-    1. Discovery Agent: maps topology
-    2. Security Agent: assesses vulnerabilities & produces diff patches
-    3. Data Readiness Agent: formulates vector search plan
-    4. Deployment Planning Agent: generates Terraform and Cloud Build assets
+    1. Discovery Agent: maps topology -> publishes 'topology'
+    2. Security Agent: assesses vulnerabilities & produces diff patches -> publishes 'security_risks'
+    3. Data Readiness Agent: formulates vector search plan -> publishes 'rag_strategy'
+    4. Deployment Planning Agent: generates Terraform and Cloud Build assets -> publishes 'deployment_spec'
     5. Synthesis: aggregates into an executive deployment roadmap package
     """
     pipeline_results = {}
@@ -207,23 +211,66 @@ def run_collaborative_agent_pipeline(
         stage_tokens = max(1, len(str(res)) // 4)
         total_tokens += stage_tokens
 
-        # Augment with deep assets for specific agents
-        if stage == "security":
+        # Augment with deep assets for specific agents & publish to Memory Bus
+        if stage == "discovery":
+            if project_id and db:
+                publish_memory(
+                    project_id=project_id,
+                    key="topology",
+                    value=res.get("structured_data", {}),
+                    source_agent="discovery",
+                    db=db,
+                )
+        elif stage == "security":
             patches = [generate_security_patch(f) for f in findings]
             res["structured_data"]["unified_diff_patches"] = patches
+            if project_id and db:
+                publish_memory(
+                    project_id=project_id,
+                    key="security_risks",
+                    value=res.get("structured_data", {}),
+                    source_agent="security",
+                    db=db,
+                )
+        elif stage == "data_readiness":
+            if project_id and db:
+                publish_memory(
+                    project_id=project_id,
+                    key="rag_strategy",
+                    value=res.get("structured_data", {}),
+                    source_agent="data_readiness",
+                    db=db,
+                )
         elif stage == "deployment_planner":
             tf_code = generate_cloud_run_terraform(project_name)
             cb_yaml = generate_cloud_build_yaml(project_name)
             res["structured_data"]["terraform_config"] = tf_code
             res["structured_data"]["cloud_build_yaml"] = cb_yaml
+            if project_id and db:
+                publish_memory(
+                    project_id=project_id,
+                    key="deployment_spec",
+                    value={
+                        "target": "Google Cloud Run",
+                        "region": "us-central1",
+                        "terraform_available": True,
+                    },
+                    source_agent="deployment_planner",
+                    db=db,
+                )
 
         pipeline_results[stage] = res
+
+    # Retrieve Consolidated Blackboard if DB available
+    blackboard = {}
+    if project_id and db:
+        blackboard, _ = get_project_blackboard(project_id, db)
 
     # Synthesize Master Executive Summary
     summary_md = [
         f"# Google Cloud Consulting — Collaborative Multi-Agent Advisory Package",
         f"**Target System:** `{project_name}`",
-        f"**Pipeline Mode:** Autonomous 4-Agent Sequential & Fan-Out Synthesis",
+        f"**Pipeline Mode:** Autonomous 4-Agent Sequential & Blackboard Synthesis",
         "",
         "## Executive Summary & Stage Findings",
         f"1. **Architecture & Topology (Discovery Agent):** {len(inventory_summary.get('detected_frameworks', []))} framework(s), {inventory_summary.get('total_files', 0)} files analyzed.",
@@ -248,6 +295,7 @@ def run_collaborative_agent_pipeline(
         "pipeline_status": "completed",
         "stages_executed": stages,
         "stage_results": pipeline_results,
+        "shared_blackboard": blackboard,
         "executive_summary_markdown": "\n".join(summary_md),
         "total_tokens_used": total_tokens,
         "total_execution_time_ms": total_time_ms,

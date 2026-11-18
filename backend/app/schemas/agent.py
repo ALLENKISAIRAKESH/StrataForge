@@ -51,3 +51,31 @@ class AgentExecutionResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AgentMemoryEntry(BaseModel):
+    id: str
+    project_id: str
+    key: str
+    source_agent: str
+    value: Any
+    confidence: float
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgentMemoryPublishRequest(BaseModel):
+    key: str = Field(..., description="Blackboard memory key, e.g. 'topology', 'security_risks'")
+    value: Any = Field(..., description="Factual value or structured dict to store")
+    source_agent: str = Field("user", description="Publishing agent or 'user'")
+    confidence: float = Field(1.0, ge=0.0, le=1.0)
+
+
+class AgentBlackboardResponse(BaseModel):
+    project_id: str
+    blackboard: Dict[str, Any]
+    memories: List[AgentMemoryEntry]
+    total_keys: int
+

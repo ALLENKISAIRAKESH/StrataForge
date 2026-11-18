@@ -160,3 +160,27 @@ Content-Type: application/json
 {
   "custom_instruction": "Generate production-grade Terraform and automated diff patches"
 }
+
+### 22. Inspect Agent Blackboard & Memory Bus
+GET {{baseUrl}}/projects/{{projectId}}/agents/memory HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 23. Publish / Inject Memory Constraint to Bus
+POST {{baseUrl}}/projects/{{projectId}}/agents/memory HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "key": "enterprise_target_region",
+  "value": {
+    "region": "asia-south1",
+    "vpc_connector": "projects/my-enterprise/locations/asia-south1/connectors/fde-conn",
+    "enforce_vpc_egress": "all-traffic"
+  },
+  "source_agent": "human_supervisor",
+  "confidence": 1.0
+}
+
+### 24. Clear Agent Blackboard Bus
+DELETE {{baseUrl}}/projects/{{projectId}}/agents/memory HTTP/1.1
+Authorization: Bearer {{authToken}}
