@@ -212,3 +212,21 @@ Content-Type: application/json
   "patch_content": "--- a/requirements.txt\n+++ b/requirements.txt\n@@ -1,4 +1,4 @@\n-fastapi\n-uvicorn\n+fastapi==0.115.0\n+uvicorn==0.30.6\n",
   "reviewer_comments": "Applying production dependency pins via Human Workbench"
 }
+
+### 28. Generate Production Terraform Bundle (Cloud Run & Cloud SQL)
+# @name getTerraformBundle
+GET {{baseUrl}}/projects/{{projectId}}/infra/terraform HTTP/1.1
+Authorization: Bearer {{authToken}}
+
+### 29. Validate Custom HCL Terraform Syntax
+POST {{baseUrl}}/projects/{{projectId}}/infra/terraform/validate HTTP/1.1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "terraform_code": "resource \"google_cloud_run_v2_service\" \"svc\" {\n  name = \"app\"\n  template {\n    containers {\n      image = \"gcr.io/proj/app:v1\"\n      startup_probe { http_get { path = \"/health\" } }\n      liveness_probe { http_get { path = \"/health\" } }\n    }\n  }\n}\nresource \"google_vpc_access_connector\" \"conn\" {}\nresource \"google_secret_manager_secret\" \"sec\" {}\n"
+}
+
+### 30. Download Complete Terraform Directory Bundle (.zip)
+GET {{baseUrl}}/projects/{{projectId}}/infra/terraform/download HTTP/1.1
+Authorization: Bearer {{authToken}}

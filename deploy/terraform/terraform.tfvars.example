@@ -1,0 +1,10 @@
+project_id      = "fde-cloud-consulting-2027"
+region          = "asia-south1"
+environment     = "prod"
+app_name        = "fde-enterprise-platform"
+container_image = "gcr.io/fde-cloud-consulting-2027/fde-enterprise-platform:latest"
+min_instances   = 1
+max_instances   = 10
+db_tier         = "db-custom-2-7680"
+db_name         = "fde_production"
+db_user         = "fde_admin"

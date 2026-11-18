@@ -288,6 +288,14 @@ interface AgentFeedbackItem {
   reviewer_name?: string;
 }
 
+interface TerraformBundle {
+  project_id: string;
+  region: string;
+  files: Record<string, string>;
+  is_valid: boolean;
+  validation_errors: string[];
+}
+
 export default function App() {
   const [health, setHealth] = useState<BackendHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -357,6 +365,11 @@ export default function App() {
   const [activeReviewPatch, setActiveReviewPatch] = useState<string | null>(null);
   const [reviewComments, setReviewComments] = useState('');
   const [isApplyingPatch, setIsApplyingPatch] = useState(false);
+
+  // Production IaC & Terraform State
+  const [terraformBundle, setTerraformBundle] = useState<TerraformBundle | null>(null);
+  const [selectedTfFile, setSelectedTfFile] = useState<string>('main.tf');
+  const [isLoadingTerraform, setIsLoadingTerraform] = useState(false);
 
   // 1. Health check
   useEffect(() => {
@@ -512,6 +525,13 @@ export default function App() {
       .then((res) => (res.ok ? res.json() : []))
       .then((fList: AgentFeedbackItem[]) => setFeedbackList(fList))
       .catch(() => setFeedbackList([]));
+
+    fetch(`/api/v1/projects/${activeProject.id}/infra/terraform`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((bundle: TerraformBundle | null) => setTerraformBundle(bundle))
+      .catch(() => setTerraformBundle(null));
   }, [token, activeProject]);
 
   // Authentication Handlers
@@ -941,6 +961,44 @@ export default function App() {
       setActiveReviewPatch(null);
       setReviewComments('');
       alert(`Decision recorded: ${action.toUpperCase()}`);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // IaC Terraform Handlers
+  const fetchTerraformBundle = async () => {
+    if (!token || !activeProject) return;
+    setIsLoadingTerraform(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/infra/terraform`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setTerraformBundle(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to fetch Terraform bundle', err);
+    } finally {
+      setIsLoadingTerraform(false);
+    }
+  };
+
+  const handleDownloadTerraformZip = async () => {
+    if (!token || !activeProject) return;
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProject.id}/infra/terraform/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to download Terraform bundle');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '-')}-terraform.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     } catch (err: any) {
       alert(err.message);
     }
@@ -2072,6 +2130,84 @@ export default function App() {
                       </div>
                     )}
                   </div>
+
+                  {/* Production Infrastructure as Code (Terraform) */}
+                  <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-blue-400" />
+                          Production Infrastructure as Code (Terraform & GCP Cloud Run)
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800 font-mono">
+                            Region: {terraformBundle?.region || 'asia-south1'}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Synthesized production HCL: Cloud Run v2, Serverless VPC Access connector, Cloud SQL PostgreSQL 16, Secret Manager, and least-privilege IAM service account.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={fetchTerraformBundle}
+                          disabled={isLoadingTerraform}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium transition-colors"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          {isLoadingTerraform ? 'Synthesizing...' : 'Re-generate'}
+                        </button>
+                        <button
+                          onClick={handleDownloadTerraformZip}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Download Bundle (.zip)
+                        </button>
+                      </div>
+                    </div>
+
+                    {terraformBundle ? (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                          <div className="flex items-center gap-1">
+                            {Object.keys(terraformBundle.files).map((filename) => (
+                              <button
+                                key={filename}
+                                onClick={() => setSelectedTfFile(filename)}
+                                className={`px-2.5 py-1 text-xs font-mono rounded-lg transition-colors ${
+                                  selectedTfFile === filename
+                                    ? 'bg-blue-600 text-white font-semibold'
+                                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                                }`}
+                              >
+                                {filename}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {terraformBundle.is_valid ? (
+                              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> HCL Validated (Cloud Run v2 Verified)
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 flex items-center gap-1">
+                                <XCircle className="w-3 h-3" /> {terraformBundle.validation_errors.length} Validation Warning(s)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="relative">
+                          <pre className="p-4 bg-[#0a0e17] rounded-xl text-xs font-mono text-blue-200 overflow-x-auto max-h-96 whitespace-pre leading-relaxed border border-slate-800">
+                            {terraformBundle.files[selectedTfFile] || 'File not found'}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                        Click "Re-generate" to synthesize the production Terraform plan for this project.
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -2647,6 +2783,13 @@ export default function App() {
                     status: 'Completed (Tested)',
                     active: true,
                     details: 'Enterprise engineer review workbench for automated diff patches, approval gates, virtual patch application with file safety, and audit feedback trail.',
+                  },
+                  {
+                    phase: 'Phase 4: Week 11',
+                    title: 'Production IaC (Terraform for Cloud Run & Cloud SQL)',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Production-grade HCL synthesizing Cloud Run v2, Serverless VPC Access connector, Cloud SQL PostgreSQL 16, Secret Manager, least-privilege IAM service account, and downloadable bundle.',
                   },
                 ].map((item, idx) => (
                   <div

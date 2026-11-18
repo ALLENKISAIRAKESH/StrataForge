@@ -43,6 +43,11 @@ from backend.app.schemas.workbench import (
     ApplyPatchRequest,
     ApplyPatchResponse,
 )
+from backend.app.schemas.infra import (
+    TerraformBundleResponse,
+    TerraformValidateRequest,
+    TerraformValidateResponse,
+)
 
 __all__ = [
     "UserCreate",
@@ -79,4 +84,7 @@ __all__ = [
     "AgentFeedbackResponse",
     "ApplyPatchRequest",
     "ApplyPatchResponse",
+    "TerraformBundleResponse",
+    "TerraformValidateRequest",
+    "TerraformValidateResponse",
 ]
