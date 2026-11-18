@@ -2798,6 +2798,13 @@ export default function App() {
                     active: true,
                     details: 'Token bucket rate limiting, OWASP security headers (HSTS, CSP, X-Frame-Options), and strict zip magic bytes file upload verification.',
                   },
+                  {
+                    phase: 'Phase 4: Week 13',
+                    title: 'Distributed Observability & OpenTelemetry',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'W3C TraceContext distributed propagation (X-Trace-ID, X-Span-ID), structured Google Cloud Logging, and Prometheus metrics exporter (/api/v1/metrics).',
+                  },
                 ].map((item, idx) => (
                   <div
                     key={idx}

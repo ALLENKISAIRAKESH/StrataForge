@@ -16,8 +16,10 @@ from backend.app.api.v1.endpoints.reports import router as reports_router
 from backend.app.api.v1.endpoints.agents import router as agents_router
 from backend.app.api.v1.endpoints.workbench import router as workbench_router
 from backend.app.api.v1.endpoints.infra import router as infra_router
+from backend.app.api.v1.endpoints.metrics import router as metrics_router
 from backend.app.core.security_headers import SecurityHeadersMiddleware
 from backend.app.core.rate_limiter import RateLimiterMiddleware
+from backend.app.core.telemetry import ObservabilityMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +46,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# OpenTelemetry Distributed Tracing & Logging Middleware
+app.add_middleware(ObservabilityMiddleware)
 
 # OWASP Security Headers Middleware
 app.add_middleware(SecurityHeadersMiddleware)
@@ -73,6 +78,7 @@ app.include_router(reports_router, prefix=settings.API_V1_STR, tags=["Production
 app.include_router(agents_router, prefix=settings.API_V1_STR, tags=["Multi-Agent Reasoning"])
 app.include_router(workbench_router, prefix=settings.API_V1_STR, tags=["Human Workbench & Feedback"])
 app.include_router(infra_router, prefix=settings.API_V1_STR, tags=["Infrastructure as Code & Cloud Run"])
+app.include_router(metrics_router, prefix=settings.API_V1_STR, tags=["Observability & Metrics"])
 
 if __name__ == "__main__":
     import uvicorn
