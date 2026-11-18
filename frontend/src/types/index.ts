@@ -251,3 +251,16 @@ export interface TerraformBundle {
   is_valid: boolean;
   validation_errors: string[];
 }
+
+export type ActiveTab =
+  | 'overview'
+  | 'workspaces'
+  | 'projects'
+  | 'discovery'
+  | 'diagnostics'
+  | 'readiness'
+  | 'workbench'
+  | 'agents'
+  | 'roadmap';
+
+export type AgentType = 'discovery' | 'security' | 'data_readiness' | 'deployment_planner';
