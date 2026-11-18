@@ -17,6 +17,7 @@ from backend.app.api.v1.endpoints.agents import router as agents_router
 from backend.app.api.v1.endpoints.workbench import router as workbench_router
 from backend.app.api.v1.endpoints.infra import router as infra_router
 from backend.app.api.v1.endpoints.metrics import router as metrics_router
+from backend.app.api.v1.endpoints.benchmark import router as benchmark_router
 from backend.app.core.security_headers import SecurityHeadersMiddleware
 from backend.app.core.rate_limiter import RateLimiterMiddleware
 from backend.app.core.telemetry import ObservabilityMiddleware
@@ -79,6 +80,7 @@ app.include_router(agents_router, prefix=settings.API_V1_STR, tags=["Multi-Agent
 app.include_router(workbench_router, prefix=settings.API_V1_STR, tags=["Human Workbench & Feedback"])
 app.include_router(infra_router, prefix=settings.API_V1_STR, tags=["Infrastructure as Code & Cloud Run"])
 app.include_router(metrics_router, prefix=settings.API_V1_STR, tags=["Observability & Metrics"])
+app.include_router(benchmark_router, prefix=settings.API_V1_STR, tags=["Evaluation & Benchmarks"])
 
 if __name__ == "__main__":
     import uvicorn

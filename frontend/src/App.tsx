@@ -2805,6 +2805,13 @@ export default function App() {
                     active: true,
                     details: 'W3C TraceContext distributed propagation (X-Trace-ID, X-Span-ID), structured Google Cloud Logging, and Prometheus metrics exporter (/api/v1/metrics).',
                   },
+                  {
+                    phase: 'Phase 4: Week 14',
+                    title: 'Automated Evaluation & Benchmark Suite',
+                    status: 'Completed (Tested)',
+                    active: true,
+                    details: 'Golden dataset confusion matrix benchmarking (Precision, Recall, F1 >= 0.85), rule coverage index, and 100% line-level zero-hallucination grounding verification.',
+                  },
                 ].map((item, idx) => (
                   <div
                     key={idx}
